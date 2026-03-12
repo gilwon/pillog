@@ -1,0 +1,48 @@
+name: Data Pipeline - C003 Collection
+
+on:
+  schedule:
+    # Run daily at 03:00 KST (18:00 UTC previous day)
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Collection mode'
+        required: true
+        default: 'incremental'
+        type: choice
+        options:
+          - incremental
+          - full
+      since:
+        description: 'Collect changes since (YYYY-MM-DD, only for incremental)'
+        required: false
+        type: string
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run C003 Collection
+        env:
+          FOOD_SAFETY_API_KEY: ${{ secrets.FOOD_SAFETY_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          cd scripts/pipeline
+          if [ "${{ inputs.mode }}" = "full" ]; then
+            python collect_c003.py --full
+          elif [ -n "${{ inputs.since }}" ]; then
+            python collect_c003.py --since "${{ inputs.since }}"
+          else
+            python collect_c003.py
+          fi

@@ -1,0 +1,3 @@
+# Data pipeline dependencies
+# Note: Uses Python stdlib (urllib, json) for API calls
+# No external dependencies needed for MVP pipeline
