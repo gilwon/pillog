@@ -3,7 +3,16 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_URL",
+        "FOOD_SAFETY_API_KEY",
+        "DATA_GO_KR_API_KEY",
+        "GROQ_API_KEY",
+        "MEILISEARCH_HOST",
+        "MEILISEARCH_API_KEY"
+      ]
     },
     "dev": {
       "cache": false,
