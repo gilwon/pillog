@@ -1,0 +1,31 @@
+{
+  "searchableAttributes": [
+    "name",
+    "company",
+    "functionality_tags",
+    "primary_functionality"
+  ],
+  "filterableAttributes": [
+    "functionality_tags",
+    "company",
+    "is_active"
+  ],
+  "sortableAttributes": [],
+  "displayedAttributes": [
+    "id",
+    "name",
+    "company",
+    "functionality_tags",
+    "shape"
+  ],
+  "typoTolerance": {
+    "enabled": true,
+    "minWordSizeForTypos": {
+      "oneTypo": 4,
+      "twoTypos": 8
+    }
+  },
+  "pagination": {
+    "maxTotalHits": 10000
+  }
+}
