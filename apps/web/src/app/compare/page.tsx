@@ -1,0 +1,99 @@
+'use client'
+
+import { CompareTable } from '@/features/compare/components/CompareTable'
+import { CompareProductSearch } from '@/features/compare/components/CompareProductSearch'
+import { useCompareStore } from '@/features/compare/store/compare-store'
+import { ShareDialog } from '@/features/share/components/ShareDialog'
+import { ScaleIcon, X } from 'lucide-react'
+
+export default function ComparePage() {
+  const { items, removeItem, clearAll } = useCompareStore()
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <ScaleIcon className="h-6 w-6 text-muted-foreground" />
+          <div>
+            <h1 className="text-2xl font-bold">제품 비교</h1>
+            {items.length > 0 && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {items.length}개 제품 비교 중
+              </p>
+            )}
+          </div>
+        </div>
+        {items.length > 0 && (
+          <div className="flex items-center gap-2">
+            <ShareDialog
+              type="compare"
+              data={{
+                products: items.map((i) => ({
+                  id: i.id,
+                  name: i.name,
+                  company: i.company,
+                })),
+                comparison_table: [],
+              }}
+            />
+            <button
+              onClick={clearAll}
+              className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              전체 삭제
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Inline product search */}
+      {items.length < 4 && (
+        <div className="mb-4">
+          <CompareProductSearch />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {items.length === 0 && (
+        <div className="py-10 text-center text-muted-foreground">
+          <p className="text-sm">위에서 제품을 검색해 비교를 시작하세요.</p>
+          <p className="mt-1 text-xs">최대 4개 제품을 나란히 비교할 수 있습니다.</p>
+        </div>
+      )}
+
+      {/* Selected product chips */}
+      {items.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-sm"
+            >
+              <span className="font-medium">{item.name}</span>
+              <span className="text-muted-foreground">{item.company}</span>
+              <button
+                onClick={() => removeItem(item.id)}
+                className="ml-1 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                aria-label={`${item.name} 제거`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Compare table */}
+      {items.length >= 2 && (
+        <CompareTable productIds={items.map((i) => i.id)} />
+      )}
+
+      {items.length === 1 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          제품을 1개 더 추가하면 비교를 시작합니다.
+        </p>
+      )}
+    </div>
+  )
+}

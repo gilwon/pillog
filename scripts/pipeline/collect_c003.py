@@ -37,7 +37,7 @@ SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 BASE_URL = "http://openapi.foodsafetykorea.go.kr/api"
 SERVICE_ID = "C003"
-BATCH_SIZE = 100  # Items per API request (max 1000)
+BATCH_SIZE = 1000  # Items per API request (max 1000)
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
 
@@ -52,8 +52,21 @@ def fetch_c003(start: int, end: int, change_date: str = "") -> dict:
         try:
             req = Request(url)
             with urlopen(req, timeout=30) as response:
-                data = json.loads(response.read().decode("utf-8"))
-                return data
+                text = response.read().decode("utf-8")
+
+            # 식약처 API는 오류 시 HTTP 200 + HTML을 반환함
+            if text.lstrip().startswith("<"):
+                import re as _re
+                match = _re.search(r"alert\('([^']+)'\)", text)
+                msg = match.group(1) if match else "식약처 API 일시 오류"
+                logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} — HTML response: {msg}")
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY * (attempt + 1))
+                    continue
+                raise ValueError(msg)
+
+            return json.loads(text)
+
         except (URLError, HTTPError) as e:
             logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed: {e}")
             if attempt < MAX_RETRIES - 1:
