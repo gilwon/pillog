@@ -1,0 +1,12 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@pillog/types": ["../../packages/types/src/index.ts"],
+      "@pillog/api-client": ["../../packages/api-client/src/index.ts"]
+    }
+  }
+}
