@@ -6,15 +6,47 @@ export const maxDuration = 300
 
 const BATCH_SIZE = 500
 
-// products.raw_materials 문자열 → 성분명 배열 (parse_ingredients.py 동일 로직)
+// products.raw_materials 문자열 → 성분명 배열
 function parseRawMaterials(raw: string): string[] {
   if (!raw) return []
-  let text = raw.replace(/\([^)]*%[^)]*\)/g, '')
+  let text = raw
+
+  // HTML 엔티티 디코딩: &#40; → (, &#41; → )
+  text = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+
+  // 전각 → 반각 변환 (ａ-ｚ, Ａ-Ｚ, ０-９)
+  text = text.replace(/[\uff01-\uff5e]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+  )
+
+  // 모든 괄호 종류 통일: {}, [] → ()
+  text = text.replace(/[{[]/g, '(').replace(/[}\]]/g, ')')
+
+  // 퍼센트/수량 포함 괄호 제거: (중국산, 50%이상), (100,000CFU/g)
+  text = text.replace(/\([^)]*[%/][^)]*\)/g, '')
+
+  // 불필요 단어 제거
   text = text.replace(/\s*(이상|이하|함유)\s*/g, '')
+
   return text
     .split(',')
-    .map((part) => part.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim())
-    .filter((name) => name.length >= 2 && !/^[\d.]+$/.test(name))
+    .map((part) => {
+      let s = part
+      // 남은 괄호 내용 제거
+      s = s.replace(/\([^)]*\)/g, '')
+      // 불완전 괄호 잔해 제거: 열림 없이 닫힘, 닫힘 없이 열림
+      s = s.replace(/\([^)]*$/g, '')
+      s = s.replace(/^[^(]*\)/g, '')
+      return s.replace(/\s+/g, ' ').trim()
+    })
+    .filter((name) => {
+      if (name.length < 2) return false
+      // 숫자/단위만으로 된 항목 제외
+      if (/^[\d.,\s]+(%|개\/g|cfu\/g|iu\/g|mg|μg)?[)\s]*$/i.test(name)) return false
+      // 규격 잔해 제외 (생균으로, 의 합 등)
+      if (/의\s*(합|생균|사균)|적량$/.test(name)) return false
+      return true
+    })
 }
 
 // products.standard 문자열에서 성분 함량 추출

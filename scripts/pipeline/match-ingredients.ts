@@ -25,12 +25,40 @@ const LINK_BATCH = 500
 
 function parseRawMaterials(raw: string): string[] {
   if (!raw) return []
-  let text = raw.replace(/\([^)]*%[^)]*\)/g, '')
+  let text = raw
+
+  // HTML 엔티티 디코딩: &#40; → (, &#41; → )
+  text = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+
+  // 전각 → 반각 변환
+  text = text.replace(/[\uff01-\uff5e]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+  )
+
+  // 모든 괄호 종류 통일: {}, [] → ()
+  text = text.replace(/[{[]/g, '(').replace(/[}\]]/g, ')')
+
+  // 퍼센트/수량 포함 괄호 제거
+  text = text.replace(/\([^)]*[%/][^)]*\)/g, '')
+
+  // 불필요 단어 제거
   text = text.replace(/\s*(이상|이하|함유)\s*/g, '')
+
   return text
     .split(',')
-    .map((part) => part.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim())
-    .filter((name) => name.length >= 2 && !/^[\d.]+$/.test(name))
+    .map((part) => {
+      let s = part
+      s = s.replace(/\([^)]*\)/g, '')
+      s = s.replace(/\([^)]*$/g, '')
+      s = s.replace(/^[^(]*\)/g, '')
+      return s.replace(/\s+/g, ' ').trim()
+    })
+    .filter((name) => {
+      if (name.length < 2) return false
+      if (/^[\d.,\s]+(%|개\/g|cfu\/g|iu\/g|mg|μg)?[)\s]*$/i.test(name)) return false
+      if (/의\s*(합|생균|사균)|적량$/.test(name)) return false
+      return true
+    })
 }
 
 function parseAmount(standard: string, canonicalName: string): [number | null, string | null] {
