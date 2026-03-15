@@ -16,8 +16,11 @@ export function parseRawMaterials(raw: string): string[] {
     String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
   )
 
-  // 모든 괄호 종류 통일: {}, [] → ()
-  text = text.replace(/[{[]/g, '(').replace(/[}\]]/g, ')')
+  // 모든 괄호 종류 통일: {}, [], 〔〕, 【】 → ()
+  text = text.replace(/[{[〔【]/g, '(').replace(/[}\]〕】]/g, ')')
+
+  // 특수 기호 제거: ※, ①②③ 등
+  text = text.replace(/[※①②③④⑤⑥⑦⑧⑨⑩]/g, '')
 
   // 퍼센트/수량 포함 괄호 제거: (중국산, 50%이상), (100,000CFU/g)
   text = text.replace(/\([^)]*[%/][^)]*\)/g, '')
@@ -41,9 +44,17 @@ export function parseRawMaterials(raw: string): string[] {
     .filter((name) => {
       if (name.length < 2) return false
       // 숫자/단위만으로 된 항목 제외
-      if (/^[\d.,\s]+(%|개\/g|cfu\/g|iu\/g|mg|μg)?[)\s]*$/i.test(name)) return false
+      if (/^[\d.,\s]+(%|개\s*\/\s*g|cfu\s*\/\s*g|iu\s*\/\s*g|mg|μg)?[)\s]*$/i.test(name)) return false
+      // CFU/IU/개수 단위 포함 잔해
+      if (/\d+\s*(cfu|iu|개)\s*\/\s*g/i.test(name)) return false
       // 규격 잔해 제외 (생균으로, 의 합 등)
       if (/의\s*(합|생균|사균)|적량$/.test(name)) return false
+      // 퍼센트 포함
+      if (/\d+(\.\d+)?\s*%/.test(name)) return false
+      // 과학적 표기 잔해 (1x10, 10^9)
+      if (/\d+[x*]\d+/i.test(name)) return false
+      // 계100% 등 합계 잔해
+      if (/계\s*\d/.test(name)) return false
       return true
     })
 }
