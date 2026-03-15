@@ -13,6 +13,7 @@ import { resolve } from 'path'
 config({ path: resolve(process.cwd(), '.env.local') })
 
 import { createClient } from '@supabase/supabase-js'
+import { parseRawMaterials, parseAmount } from '@pillog/shared/parse-ingredients'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -22,68 +23,6 @@ const supabase = createClient(
 const BATCH_SIZE = 500
 const INSERT_BATCH = 100
 const LINK_BATCH = 500
-
-function parseRawMaterials(raw: string): string[] {
-  if (!raw) return []
-  let text = raw
-
-  // HTML 엔티티 디코딩: &#40; → (, &#41; → )
-  text = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-
-  // 전각 → 반각 변환
-  text = text.replace(/[\uff01-\uff5e]/g, (ch) =>
-    String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
-  )
-
-  // 모든 괄호 종류 통일: {}, [] → ()
-  text = text.replace(/[{[]/g, '(').replace(/[}\]]/g, ')')
-
-  // 퍼센트/수량 포함 괄호 제거
-  text = text.replace(/\([^)]*[%/][^)]*\)/g, '')
-
-  // 불필요 단어 제거
-  text = text.replace(/\s*(이상|이하|함유)\s*/g, '')
-
-  return text
-    .split(',')
-    .map((part) => {
-      let s = part
-      s = s.replace(/\([^)]*\)/g, '')
-      s = s.replace(/\([^)]*$/g, '')
-      s = s.replace(/^[^(]*\)/g, '')
-      s = s.replace(/\s+\d[\d.,]*\s*%?\s*$/, '')
-      return s.replace(/\s+/g, ' ').trim()
-    })
-    .filter((name) => {
-      if (name.length < 2) return false
-      if (/^[\d.,\s]+(%|개\/g|cfu\/g|iu\/g|mg|μg)?[)\s]*$/i.test(name)) return false
-      if (/의\s*(합|생균|사균)|적량$/.test(name)) return false
-      return true
-    })
-}
-
-function parseAmount(standard: string, canonicalName: string): [number | null, string | null] {
-  if (!standard || !canonicalName) return [null, null]
-  const AMOUNT_RE =
-    /(\d[\d,]*(?:\.\d+)?)\s*(mg|μg|ug|mcg|IU|g|CFU|억\s*CFU|만\s*CFU|천\s*CFU)/gi
-  const UNIT_MAP: Record<string, string> = {
-    ug: 'μg', mcg: 'μg', cfu: 'CFU',
-    '억 cfu': 'CFU', '억cfu': 'CFU',
-    '만 cfu': 'CFU', '만cfu': 'CFU',
-    '천 cfu': 'CFU', '천cfu': 'CFU',
-  }
-  const idx = standard.toLowerCase().indexOf(canonicalName.toLowerCase())
-  if (idx === -1) return [null, null]
-  const window = standard.slice(idx, idx + canonicalName.length + 50)
-  AMOUNT_RE.lastIndex = 0
-  const m = AMOUNT_RE.exec(window)
-  if (m) {
-    const amount = parseFloat(m[1].replace(/,/g, ''))
-    const unit = UNIT_MAP[m[2].toLowerCase()] ?? m[2]
-    return [amount, unit]
-  }
-  return [null, null]
-}
 
 async function main() {
   console.log('🔬 성분 자동 추출 + 제품 연결 시작...')
