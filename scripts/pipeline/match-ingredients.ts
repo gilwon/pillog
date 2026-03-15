@@ -51,6 +51,7 @@ function parseRawMaterials(raw: string): string[] {
       s = s.replace(/\([^)]*\)/g, '')
       s = s.replace(/\([^)]*$/g, '')
       s = s.replace(/^[^(]*\)/g, '')
+      s = s.replace(/\s+\d[\d.,]*\s*%?\s*$/, '')
       return s.replace(/\s+/g, ' ').trim()
     })
     .filter((name) => {

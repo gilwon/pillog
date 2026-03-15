@@ -37,6 +37,8 @@ function parseRawMaterials(raw: string): string[] {
       // 불완전 괄호 잔해 제거: 열림 없이 닫힘, 닫힘 없이 열림
       s = s.replace(/\([^)]*$/g, '')
       s = s.replace(/^[^(]*\)/g, '')
+      // 이름 뒤 퍼센트/수량 제거: "덱스트린 86.7%" → "덱스트린"
+      s = s.replace(/\s+\d[\d.,]*\s*%?\s*$/, '')
       return s.replace(/\s+/g, ' ').trim()
     })
     .filter((name) => {
