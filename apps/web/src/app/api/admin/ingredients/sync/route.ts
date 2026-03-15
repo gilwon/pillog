@@ -93,13 +93,15 @@ export async function POST(req: NextRequest) {
 
           controller.enqueue(send({ type: 'start', total, totalBatches, mode }))
 
-          // 3. 배치로 스캔 → 미매칭 후보 수집
+          // 3. 배치로 스캔 → 미매칭 후보 수집 (제품 ID도 추적)
           const candidates = new Map<string, number>() // name → 등장 횟수
+          const candidateProducts = new Map<string, Set<string>>() // name → product_id set
+          const productStandards = new Map<string, string>() // product_id → standard
           for (let batch = 1; batch <= totalBatches; batch++) {
             const offset = (batch - 1) * BATCH_SIZE
             const { data: products } = await supabase
               .from('products')
-              .select('raw_materials')
+              .select('id, raw_materials, standard')
               .not('raw_materials', 'is', null)
               .range(offset, offset + BATCH_SIZE - 1)
 
@@ -107,7 +109,15 @@ export async function POST(req: NextRequest) {
               for (const name of parseRawMaterials(p.raw_materials ?? '')) {
                 const lower = name.toLowerCase()
                 if (!knownNames.has(lower)) {
-                  candidates.set(name, (candidates.get(name) ?? 0) + 1)
+                  const existing = candidates.get(lower)
+                  candidates.set(lower, (existing ?? 0) + 1)
+                  if (!candidateProducts.has(lower)) {
+                    candidateProducts.set(lower, new Set())
+                  }
+                  candidateProducts.get(lower)!.add(p.id)
+                  if (p.standard) {
+                    productStandards.set(p.id, p.standard)
+                  }
                 }
               }
             }
@@ -139,11 +149,87 @@ export async function POST(req: NextRequest) {
 
           controller.enqueue(
             send({
+              type: 'extract_done',
+              count: inserted,
+              candidates: candidates.size,
+              message: `${inserted.toLocaleString()}개 신규 성분 추가 (후보 ${candidates.size.toLocaleString()}개 발견)`,
+            })
+          )
+
+          // 5. 신규 삽입된 성분에 대해 product_ingredients 자동 연결
+          // 삽입된 성분의 canonical_name → id 매핑 조회
+          const insertedNames = newIngredients.map((i) => i.canonical_name)
+          const nameToId = new Map<string, string>()
+
+          for (let i = 0; i < insertedNames.length; i += INSERT_BATCH) {
+            const chunk = insertedNames.slice(i, i + INSERT_BATCH)
+            const { data: rows } = await supabase
+              .from('ingredients')
+              .select('id, canonical_name')
+              .in('canonical_name', chunk)
+            for (const r of rows ?? []) {
+              nameToId.set(r.canonical_name.toLowerCase().trim(), r.id)
+            }
+          }
+
+          controller.enqueue(
+            send({ type: 'link_start', ingredientCount: nameToId.size })
+          )
+
+          // product_ingredients 레코드 생성
+          let totalLinked = 0
+          const piRows: Array<{
+            product_id: string
+            ingredient_id: string
+            amount: number | null
+            amount_unit: string | null
+            is_functional: boolean
+          }> = []
+
+          for (const [name, productIds] of candidateProducts) {
+            const ingredientId = nameToId.get(name)
+            if (!ingredientId) continue
+
+            for (const productId of productIds) {
+              const standard = productStandards.get(productId) ?? ''
+              const [amount, amount_unit] = parseAmount(standard, name)
+              piRows.push({
+                product_id: productId,
+                ingredient_id: ingredientId,
+                amount,
+                amount_unit,
+                is_functional: false,
+              })
+            }
+          }
+
+          // 배치 upsert
+          const LINK_BATCH = 500
+          for (let i = 0; i < piRows.length; i += LINK_BATCH) {
+            const chunk = piRows.slice(i, i + LINK_BATCH)
+            const { data: upserted } = await supabase
+              .from('product_ingredients')
+              .upsert(chunk, { onConflict: 'product_id,ingredient_id' })
+              .select('id')
+            totalLinked += upserted?.length ?? 0
+
+            controller.enqueue(
+              send({
+                type: 'link_progress',
+                linked: totalLinked,
+                totalRows: piRows.length,
+              })
+            )
+          }
+
+          controller.enqueue(
+            send({
               type: 'done',
               mode,
               count: inserted,
               candidates: candidates.size,
-              message: `${inserted.toLocaleString()}개 신규 성분 추가 (후보 ${candidates.size.toLocaleString()}개 발견)`,
+              linked: totalLinked,
+              message: `${inserted.toLocaleString()}개 신규 성분 추가, ${totalLinked.toLocaleString()}개 제품-성분 연결 완료`,
             })
           )
         } else {

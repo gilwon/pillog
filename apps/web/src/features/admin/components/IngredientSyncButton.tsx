@@ -17,11 +17,17 @@ interface SyncProgress {
   linked?: number
 }
 
+interface LinkProgress {
+  linked: number
+  totalRows: number
+}
+
 interface SyncResult {
   mode: SyncMode
   count: number
   candidates?: number
   matchedProducts?: number
+  linked?: number
   message: string
 }
 
@@ -29,6 +35,8 @@ export function IngredientSyncButton() {
   const [isLoading, setIsLoading] = useState(false)
   const [mode, setMode] = useState<SyncMode | null>(null)
   const [progress, setProgress] = useState<SyncProgress | null>(null)
+  const [linkProgress, setLinkProgress] = useState<LinkProgress | null>(null)
+  const [phase, setPhase] = useState<'extract' | 'link' | null>(null)
   const [result, setResult] = useState<SyncResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showMenu, setShowMenu] = useState(false)
@@ -38,6 +46,8 @@ export function IngredientSyncButton() {
     setIsLoading(true)
     setMode(syncMode)
     setProgress(null)
+    setLinkProgress(null)
+    setPhase(null)
     setResult(null)
     setError(null)
     setShowMenu(false)
@@ -76,6 +86,7 @@ export function IngredientSyncButton() {
           try {
             const msg = JSON.parse(line)
             if (msg.type === 'start') {
+              setPhase(syncMode === 'extract' ? 'extract' : null)
               setProgress({ batch: 0, totalBatches: msg.totalBatches, total: msg.total })
             } else if (msg.type === 'progress') {
               setProgress({
@@ -85,12 +96,21 @@ export function IngredientSyncButton() {
                 found: msg.found,
                 linked: msg.linked,
               })
+            } else if (msg.type === 'extract_done') {
+              // extract 완료, 연결 단계로 전환
+              setProgress(null)
+            } else if (msg.type === 'link_start') {
+              setPhase('link')
+              setLinkProgress({ linked: 0, totalRows: 0 })
+            } else if (msg.type === 'link_progress') {
+              setLinkProgress({ linked: msg.linked, totalRows: msg.totalRows })
             } else if (msg.type === 'done') {
               setResult({
                 mode: msg.mode,
                 count: msg.count,
                 candidates: msg.candidates,
                 matchedProducts: msg.matchedProducts,
+                linked: msg.linked,
                 message: msg.message,
               })
               queryClient.invalidateQueries({ queryKey: ['admin', 'ingredients'] })
@@ -108,19 +128,30 @@ export function IngredientSyncButton() {
     } finally {
       setIsLoading(false)
       setProgress(null)
+      setLinkProgress(null)
+      setPhase(null)
     }
   }
 
   const pct = progress
     ? Math.round((progress.batch / Math.max(progress.totalBatches, 1)) * 100)
-    : 0
+    : linkProgress
+      ? Math.round((linkProgress.linked / Math.max(linkProgress.totalRows, 1)) * 100)
+      : 0
 
   const progressLabel =
-    mode === 'extract'
-      ? `후보 ${(progress?.found ?? 0).toLocaleString()}개 발견`
-      : `${(progress?.linked ?? 0).toLocaleString()}개 연결됨`
+    phase === 'link'
+      ? `${(linkProgress?.linked ?? 0).toLocaleString()}개 연결됨`
+      : mode === 'extract'
+        ? `후보 ${(progress?.found ?? 0).toLocaleString()}개 발견`
+        : `${(progress?.linked ?? 0).toLocaleString()}개 연결됨`
 
-  const modeLabel = mode === 'extract' ? '성분 추출 중...' : '제품 연결 중...'
+  const modeLabel =
+    phase === 'link'
+      ? '제품-성분 연결 중...'
+      : mode === 'extract'
+        ? '성분 추출 중...'
+        : '제품 연결 중...'
 
   return (
     <div className="flex flex-col items-end gap-1.5">
@@ -170,7 +201,7 @@ export function IngredientSyncButton() {
       </div>
 
       {/* 진행 상황 */}
-      {isLoading && progress && (
+      {isLoading && (progress || linkProgress) && (
         <div className="w-64 space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{modeLabel} {pct}%</span>
@@ -183,18 +214,25 @@ export function IngredientSyncButton() {
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            전체 {progress.total.toLocaleString()}개 제품 중 배치 {progress.batch}/{progress.totalBatches}
+            {phase === 'link'
+              ? `${(linkProgress?.linked ?? 0).toLocaleString()} / ${(linkProgress?.totalRows ?? 0).toLocaleString()}건 연결`
+              : `전체 ${(progress?.total ?? 0).toLocaleString()}개 제품 중 배치 ${progress?.batch ?? 0}/${progress?.totalBatches ?? 0}`}
           </p>
         </div>
       )}
-      {isLoading && !progress && (
+      {isLoading && !progress && !linkProgress && (
         <p className="text-xs text-muted-foreground">데이터베이스 연결 중...</p>
       )}
 
       {result && !isLoading && (
-        <p className="text-xs text-green-600 dark:text-green-400 text-right">
-          {result.message}
-        </p>
+        <div className="text-xs text-green-600 dark:text-green-400 text-right space-y-0.5">
+          <p>{result.message}</p>
+          {result.mode === 'extract' && result.linked != null && result.linked > 0 && (
+            <p className="text-muted-foreground">
+              (자동 연결 {result.linked.toLocaleString()}건 포함)
+            </p>
+          )}
+        </div>
       )}
       {error && (
         <p className="text-xs text-destructive text-right">{error}</p>

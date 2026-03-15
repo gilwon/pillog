@@ -42,8 +42,19 @@ export async function GET(request: NextRequest) {
       queryBuilder = queryBuilder.or(`name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`)
     }
 
-    const { data, error, count } = await queryBuilder
-      .order(sortBy, { ascending })
+    // 사용자 지정 정렬이 없으면 신고일 → 등록일 최근 순 기본 정렬
+    const isDefaultSort = sortByRaw === 'created_at' && !searchParams.has('sortBy')
+
+    let sortedQuery = queryBuilder
+    if (isDefaultSort) {
+      sortedQuery = sortedQuery
+        .order('reported_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+    } else {
+      sortedQuery = sortedQuery.order(sortBy, { ascending })
+    }
+
+    const { data, error, count } = await sortedQuery
       .range(offset, offset + limit - 1)
 
     if (error) throw error
