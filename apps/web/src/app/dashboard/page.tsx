@@ -65,13 +65,7 @@ export default function DashboardPage() {
 
       {/* Warnings */}
       {data.warnings.length > 0 && (
-        <div className={`mb-6 grid gap-3 ${
-          data.warnings.length === 1 ? 'grid-cols-1' :
-          data.warnings.length === 2 ? 'grid-cols-2' :
-          data.warnings.length === 3 ? 'grid-cols-3' :
-          data.warnings.length === 4 ? 'grid-cols-4' :
-          'grid-cols-3'
-        }`}>
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.warnings.map((warning) => (
             <WarningCard key={warning.ingredient} warning={warning} />
           ))}
