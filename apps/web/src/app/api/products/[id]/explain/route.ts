@@ -60,16 +60,7 @@ export async function GET(
       )
     }
 
-    // 3. Auth required for AI generation (cached results are already returned above)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json(
-        { error: { code: 'UNAUTHORIZED', message: '성분 AI 설명은 로그인 후 이용할 수 있습니다.', status: 401 } },
-        { status: 401 }
-      )
-    }
-
-    // 4. Check API key
+    // 3. Check API key
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
       return NextResponse.json(
