@@ -14,9 +14,9 @@ import {
 import type { DashboardNutrient } from '@/types/database'
 
 const STATUS_COLORS = {
-  safe: '#22c55e',
-  caution: '#f59e0b',
-  warning: '#ef4444',
+  safe: '#2a9d8f',
+  caution: '#e9a030',
+  warning: '#e63946',
 }
 
 interface NutrientChartProps {
@@ -42,48 +42,50 @@ export function NutrientChart({ nutrients }: NutrientChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className="rounded-lg border border-border p-8 text-center text-muted-foreground">
+      <div className="rounded-xl border border-border p-8 text-center text-muted-foreground">
         RDI 대비 섭취량 데이터가 없습니다.
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="rounded-xl border border-border p-4">
       <h2 className="mb-4 font-semibold">1일 섭취량 vs 권장량 (RDI)</h2>
-      <div className="h-[400px]">
+      <div className="h-[400px] overflow-visible">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+            margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
             <XAxis
               type="number"
               domain={[0, 'auto']}
               tickFormatter={(v) => `${v}%`}
+              fontSize={12}
             />
             <YAxis
               type="category"
               dataKey="name"
-              width={75}
-              tick={{ fontSize: 12 }}
+              width={55}
+              tick={{ fontSize: 11 }}
             />
             <Tooltip
               formatter={(value) => [`${value}%`, 'RDI 대비']}
               labelFormatter={(label) => {
                 const item = chartData.find((d) => d.name === label)
                 const rdiInfo = item?.rdi ? ` / 권장: ${item.rdi}` : ''
-                const effectInfo = item?.primary_effect ? `\n💊 ${item.primary_effect}` : ''
-                return `${label} (섭취: ${item?.amount || ''}${rdiInfo})${effectInfo}`
+                return `${label} (섭취: ${item?.amount || ''}${rdiInfo})`
               }}
+              wrapperStyle={{ zIndex: 10, maxWidth: '90vw' }}
+              contentStyle={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
             />
             <ReferenceLine
               x={100}
-              stroke="#22c55e"
+              stroke="#2a9d8f"
               strokeDasharray="3 3"
-              label={{ value: '100% RDI', position: 'top', fontSize: 11 }}
+              label={{ value: '100% RDI', position: 'top', fontSize: 10 }}
             />
             <Bar dataKey="rdi_pct" radius={[0, 4, 4, 0]}>
               {chartData.map((entry, index) => (
@@ -98,7 +100,7 @@ export function NutrientChart({ nutrients }: NutrientChartProps) {
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex items-center justify-center gap-6 text-xs text-muted-foreground">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground sm:gap-6">
         <div className="flex items-center gap-1">
           <div className="h-3 w-3 rounded-sm bg-safe" />
           <span>안전 (0~150%)</span>

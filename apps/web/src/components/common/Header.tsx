@@ -7,6 +7,7 @@ import { Menu, Pill, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { AuthButton } from './AuthButton'
 import { ThemeToggle } from './ThemeToggle'
+import { cn } from '@/lib/utils'
 
 const navLinks = [
   { href: '/products', label: '제품 검색' },
@@ -40,31 +41,49 @@ export function Header() {
     setMobileOpen(false)
   }, [pathname])
 
+  const isActive = (href: string) => pathname.startsWith(href)
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
+        <Link href="/" className="flex items-center gap-2 font-bold text-lg transition-opacity hover:opacity-80">
           <Pill className="h-6 w-6 text-primary" />
           <span>Pillog</span>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-6 text-sm md:flex">
+        <nav className="hidden items-center gap-1 text-sm md:flex">
           {navLinks.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                'relative rounded-md px-3 py-1.5 text-sm transition-colors',
+                isActive(href)
+                  ? 'text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
             >
               {label}
+              {isActive(href) && (
+                <span className="absolute inset-x-1 -bottom-[calc(0.5rem+1px)] h-0.5 rounded-full bg-primary" />
+              )}
             </Link>
           ))}
           {isLoggedIn && (
             <Link
               href="/chat"
-              className="text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                'relative rounded-md px-3 py-1.5 text-sm transition-colors',
+                isActive('/chat')
+                  ? 'text-primary font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
             >
               AI 상담
+              {isActive('/chat') && (
+                <span className="absolute inset-x-1 -bottom-[calc(0.5rem+1px)] h-0.5 rounded-full bg-primary" />
+              )}
             </Link>
           )}
         </nav>
@@ -87,13 +106,18 @@ export function Header() {
 
       {/* Mobile nav */}
       {mobileOpen && (
-        <nav className="border-t border-border bg-background px-4 pb-4 pt-2 md:hidden">
+        <nav className="animate-fade-in border-t border-border/60 bg-background px-4 pb-4 pt-2 md:hidden">
           <ul className="flex flex-col gap-1">
             {navLinks.map(({ href, label }) => (
               <li key={href}>
                 <Link
                   href={href}
-                  className="block rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  className={cn(
+                    'block rounded-md px-3 py-2.5 text-sm transition-colors',
+                    isActive(href)
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  )}
                 >
                   {label}
                 </Link>
@@ -103,7 +127,12 @@ export function Header() {
               <li>
                 <Link
                   href="/chat"
-                  className="block rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  className={cn(
+                    'block rounded-md px-3 py-2.5 text-sm transition-colors',
+                    isActive('/chat')
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  )}
                 >
                   AI 상담
                 </Link>

@@ -1,8 +1,9 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { ProductDetail } from '@/features/products/components/ProductDetail'
 import { IngredientList } from '@/features/ingredients/components/IngredientList'
 import { IngredientExplain } from '@/features/ingredients/components/IngredientExplain'
-import { Disclaimer } from '@/components/common/Disclaimer'
+import { ProductNavigation } from '@/features/products/components/ProductNavigation'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 
@@ -33,37 +34,33 @@ export default async function ProductDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  // Fetch product with ingredients
-  const { data: product, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // Fetch product + ingredients in parallel (critical path only)
+  const [{ data: product, error }, { data: ingredients }] = await Promise.all([
+    supabase.from('products').select('*').eq('id', id).single(),
+    supabase
+      .from('product_ingredients')
+      .select(
+        `
+        *,
+        ingredient:ingredients(
+          canonical_name,
+          category,
+          subcategory,
+          description,
+          primary_effect,
+          daily_rdi,
+          daily_ul,
+          rdi_unit
+        )
+      `
+      )
+      .eq('product_id', id)
+      .order('is_functional', { ascending: false }),
+  ])
 
   if (error || !product) {
     notFound()
   }
-
-  // Fetch product ingredients with ingredient details
-  const { data: ingredients } = await supabase
-    .from('product_ingredients')
-    .select(
-      `
-      *,
-      ingredient:ingredients(
-        canonical_name,
-        category,
-        subcategory,
-        description,
-        primary_effect,
-        daily_rdi,
-        daily_ul,
-        rdi_unit
-      )
-    `
-    )
-    .eq('product_id', id)
-    .order('is_functional', { ascending: false })
 
   const productWithIngredients = {
     ...product,
@@ -87,7 +84,7 @@ export default async function ProductDetailPage({ params }: Props) {
       <ProductDetail product={productWithIngredients} />
 
       {(productWithIngredients.ingredients.length > 0 || product.raw_materials) && (
-        <section className="mt-8">
+        <section className="animate-fade-in-up stagger-2 mt-10">
           <h2 className="mb-4 text-xl font-bold">성분 정보</h2>
           <IngredientList
             ingredients={productWithIngredients.ingredients}
@@ -97,9 +94,37 @@ export default async function ProductDetailPage({ params }: Props) {
         </section>
       )}
 
-      <div className="mt-8">
-        <Disclaimer />
-      </div>
+      {/* prev/next는 Suspense로 분리 — 메인 콘텐츠 렌더링을 블로킹하지 않음 */}
+      <Suspense>
+        <ProductNavigationLoader productName={product.name} />
+      </Suspense>
     </div>
+  )
+}
+
+/** 이전/다음 제품을 별도로 로드하는 async 서버 컴포넌트 */
+async function ProductNavigationLoader({ productName }: { productName: string }) {
+  const supabase = await createClient()
+
+  const [{ data: prevProducts }, { data: nextProducts }] = await Promise.all([
+    supabase
+      .from('products')
+      .select('id, name')
+      .lt('name', productName)
+      .order('name', { ascending: false })
+      .limit(1),
+    supabase
+      .from('products')
+      .select('id, name')
+      .gt('name', productName)
+      .order('name', { ascending: true })
+      .limit(1),
+  ])
+
+  return (
+    <ProductNavigation
+      prev={prevProducts?.[0] ?? null}
+      next={nextProducts?.[0] ?? null}
+    />
   )
 }

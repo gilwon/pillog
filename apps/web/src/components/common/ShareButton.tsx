@@ -2,6 +2,7 @@
 
 import { Share2, Check } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 
 interface ShareButtonProps {
@@ -31,12 +32,11 @@ export function ShareButton({ url, title, className }: ShareButtonProps) {
   }
 
   return (
-    <button
+    <Button
+      variant="outline"
+      size="sm"
       onClick={handleShare}
-      className={cn(
-        'flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-        className
-      )}
+      className={cn('gap-1.5', className)}
     >
       {copied ? (
         <>
@@ -49,6 +49,6 @@ export function ShareButton({ url, title, className }: ShareButtonProps) {
           <span>공유</span>
         </>
       )}
-    </button>
+    </Button>
   )
 }

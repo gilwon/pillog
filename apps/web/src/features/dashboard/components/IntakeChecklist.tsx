@@ -9,7 +9,7 @@ export function IntakeChecklist() {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-border p-6">
+      <div className="rounded-xl border border-border p-6">
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -19,7 +19,7 @@ export function IntakeChecklist() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-border p-6">
+      <div className="rounded-xl border border-border p-6">
         <p className="text-sm text-destructive">
           복용 체크리스트를 불러오는 중 오류가 발생했습니다.
         </p>
@@ -29,7 +29,7 @@ export function IntakeChecklist() {
 
   if (!data || data.total_count === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border p-6 text-center">
+      <div className="rounded-xl border border-dashed border-border p-6 text-center">
         <Pill className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
           등록된 영양제가 없습니다. 내 영양제를 먼저 등록해주세요.
@@ -41,13 +41,13 @@ export function IntakeChecklist() {
   const allTaken = data.taken_count === data.total_count
 
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="rounded-xl border border-border p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold">오늘 복용 체크</h2>
         <span
           className={cn(
             'text-sm font-medium',
-            allTaken ? 'text-green-600' : 'text-muted-foreground'
+            allTaken ? 'text-safe' : 'text-muted-foreground'
           )}
         >
           {data.taken_count}/{data.total_count} 완료
@@ -61,14 +61,14 @@ export function IntakeChecklist() {
             onClick={() => toggle(item.product_id, item.is_taken)}
             disabled={isToggling}
             className={cn(
-              'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors',
+              'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
               item.is_taken
-                ? 'bg-green-50 dark:bg-green-950/20'
+                ? 'bg-safe/10'
                 : 'hover:bg-muted/50'
             )}
           >
             {item.is_taken ? (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-safe" />
             ) : (
               <Circle className="h-5 w-5 shrink-0 text-muted-foreground" />
             )}
@@ -76,7 +76,7 @@ export function IntakeChecklist() {
               <span
                 className={cn(
                   'text-sm font-medium',
-                  item.is_taken && 'text-green-700 line-through dark:text-green-400'
+                  item.is_taken && 'text-safe line-through'
                 )}
               >
                 {item.product_name}
@@ -98,7 +98,7 @@ export function IntakeChecklist() {
       </div>
 
       {allTaken && (
-        <p className="mt-3 text-center text-sm font-medium text-green-600">
+        <p className="mt-3 text-center text-sm font-medium text-safe">
           오늘의 영양제를 모두 복용했습니다!
         </p>
       )}

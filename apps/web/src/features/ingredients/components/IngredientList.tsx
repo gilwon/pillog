@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { IngredientTooltip } from './IngredientTooltip'
 import { cn } from '@/lib/utils/cn'
-import { ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 interface IngredientItem {
   id?: string
@@ -27,7 +28,6 @@ interface IngredientListProps {
 }
 
 export function IngredientList({ ingredients, rawMaterials }: IngredientListProps) {
-  const [expanded, setExpanded] = useState(false)
   const [selectedIngredient, setSelectedIngredient] =
     useState<IngredientItem | null>(null)
 
@@ -37,9 +37,6 @@ export function IngredientList({ ingredients, rawMaterials }: IngredientListProp
   const rawMaterialItems = rawMaterials
     ? rawMaterials.split(',').map((s) => s.trim()).filter(Boolean)
     : []
-  const displayRawMaterials = expanded
-    ? rawMaterialItems
-    : rawMaterialItems.slice(0, 5)
 
   return (
     <div>
@@ -68,32 +65,16 @@ export function IngredientList({ ingredients, rawMaterials }: IngredientListProp
             원재료
           </h3>
           <div className="flex flex-wrap gap-1.5">
-            {displayRawMaterials.map((item, i) => (
-              <span
+            {rawMaterialItems.map((item, i) => (
+              <Link
                 key={`raw-${i}`}
-                className="rounded-md border border-border bg-muted/50 px-2.5 py-1.5 text-sm text-foreground"
+                href={`/products?q=${encodeURIComponent(item)}`}
+                className="rounded-md border border-border bg-muted/50 px-2.5 py-1.5 text-sm text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
               >
                 {item}
-              </span>
+              </Link>
             ))}
           </div>
-          {rawMaterialItems.length > 5 && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="mt-2 flex items-center gap-1 text-sm text-primary hover:underline"
-            >
-              {expanded ? (
-                <>
-                  접기 <ChevronUp className="h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  {rawMaterialItems.length - 5}개 더 보기{' '}
-                  <ChevronDown className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          )}
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { CompareTable } from '@/features/compare/components/CompareTable'
 import { CompareProductSearch } from '@/features/compare/components/CompareProductSearch'
 import { useCompareStore } from '@/features/compare/store/compare-store'
 import { ShareDialog } from '@/features/share/components/ShareDialog'
+import { Button } from '@/components/ui/button'
 import { ScaleIcon, X } from 'lucide-react'
 
 export default function ComparePage() {
@@ -12,9 +13,11 @@ export default function ComparePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="animate-fade-in-up mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ScaleIcon className="h-6 w-6 text-muted-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+            <ScaleIcon className="h-5 w-5 text-muted-foreground" />
+          </div>
           <div>
             <h1 className="text-2xl font-bold">제품 비교</h1>
             {items.length > 0 && (
@@ -37,44 +40,44 @@ export default function ComparePage() {
                 comparison_table: [],
               }}
             />
-            <button
-              onClick={clearAll}
-              className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
+            <Button variant="outline" size="sm" onClick={clearAll}>
               전체 삭제
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       {/* Inline product search */}
       {items.length < 4 && (
-        <div className="mb-4">
+        <div className="animate-fade-in-up stagger-1 mb-4">
           <CompareProductSearch />
         </div>
       )}
 
       {/* Empty state */}
       {items.length === 0 && (
-        <div className="py-10 text-center text-muted-foreground">
-          <p className="text-sm">위에서 제품을 검색해 비교를 시작하세요.</p>
-          <p className="mt-1 text-xs">최대 4개 제품을 나란히 비교할 수 있습니다.</p>
+        <div className="animate-scale-in py-16 text-center text-muted-foreground">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+            <ScaleIcon className="h-6 w-6 text-muted-foreground/70" />
+          </div>
+          <p className="text-sm font-medium">위에서 제품을 검색해 비교를 시작하세요.</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">최대 4개 제품을 나란히 비교할 수 있습니다.</p>
         </div>
       )}
 
       {/* Selected product chips */}
       {items.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="animate-fade-in mb-6 flex flex-wrap gap-2">
           {items.map((item) => (
             <div
               key={item.id}
-              className="flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-sm"
+              className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm"
             >
               <span className="font-medium">{item.name}</span>
               <span className="text-muted-foreground">{item.company}</span>
               <button
                 onClick={() => removeItem(item.id)}
-                className="ml-1 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                className="ml-1 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 aria-label={`${item.name} 제거`}
               >
                 <X className="h-3 w-3" />
@@ -86,11 +89,13 @@ export default function ComparePage() {
 
       {/* Compare table */}
       {items.length >= 2 && (
-        <CompareTable productIds={items.map((i) => i.id)} />
+        <div className="animate-fade-in-up stagger-2">
+          <CompareTable productIds={items.map((i) => i.id)} />
+        </div>
       )}
 
       {items.length === 1 && (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className="animate-fade-in py-6 text-center text-sm text-muted-foreground">
           제품을 1개 더 추가하면 비교를 시작합니다.
         </p>
       )}
