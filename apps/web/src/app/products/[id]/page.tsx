@@ -86,10 +86,13 @@ export default async function ProductDetailPage({ params }: Props) {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <ProductDetail product={productWithIngredients} />
 
-      {productWithIngredients.ingredients.length > 0 && (
+      {(productWithIngredients.ingredients.length > 0 || product.raw_materials) && (
         <section className="mt-8">
           <h2 className="mb-4 text-xl font-bold">성분 정보</h2>
-          <IngredientList ingredients={productWithIngredients.ingredients} />
+          <IngredientList
+            ingredients={productWithIngredients.ingredients}
+            rawMaterials={product.raw_materials}
+          />
           <IngredientExplain productId={id} />
         </section>
       )}

@@ -23,18 +23,23 @@ interface IngredientItem {
 
 interface IngredientListProps {
   ingredients: IngredientItem[]
+  rawMaterials?: string | null
 }
 
-export function IngredientList({ ingredients }: IngredientListProps) {
+export function IngredientList({ ingredients, rawMaterials }: IngredientListProps) {
   const [expanded, setExpanded] = useState(false)
   const [selectedIngredient, setSelectedIngredient] =
     useState<IngredientItem | null>(null)
 
   const functionalIngredients = ingredients.filter((i) => i.is_functional)
-  const otherIngredients = ingredients.filter((i) => !i.is_functional)
-  const displayOthers = expanded
-    ? otherIngredients
-    : otherIngredients.slice(0, 5)
+
+  // Parse raw_materials string into individual items
+  const rawMaterialItems = rawMaterials
+    ? rawMaterials.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
+  const displayRawMaterials = expanded
+    ? rawMaterialItems
+    : rawMaterialItems.slice(0, 5)
 
   return (
     <div>
@@ -56,22 +61,23 @@ export function IngredientList({ ingredients }: IngredientListProps) {
         </div>
       )}
 
-      {/* Other ingredients */}
-      {otherIngredients.length > 0 && (
+      {/* Raw materials */}
+      {rawMaterialItems.length > 0 && (
         <div>
           <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-            기타 원료
+            원재료
           </h3>
-          <div className="space-y-2">
-            {displayOthers.map((ing, i) => (
-              <IngredientRow
-                key={`other-${i}`}
-                ingredient={ing}
-                onSelect={() => setSelectedIngredient(ing)}
-              />
+          <div className="flex flex-wrap gap-1.5">
+            {displayRawMaterials.map((item, i) => (
+              <span
+                key={`raw-${i}`}
+                className="rounded-md border border-border bg-muted/50 px-2.5 py-1.5 text-sm text-foreground"
+              >
+                {item}
+              </span>
             ))}
           </div>
-          {otherIngredients.length > 5 && (
+          {rawMaterialItems.length > 5 && (
             <button
               onClick={() => setExpanded(!expanded)}
               className="mt-2 flex items-center gap-1 text-sm text-primary hover:underline"
@@ -82,7 +88,7 @@ export function IngredientList({ ingredients }: IngredientListProps) {
                 </>
               ) : (
                 <>
-                  {otherIngredients.length - 5}개 더 보기{' '}
+                  {rawMaterialItems.length - 5}개 더 보기{' '}
                   <ChevronDown className="h-4 w-4" />
                 </>
               )}
