@@ -56,8 +56,7 @@ def fetch_c003(start: int, end: int, change_date: str = "") -> dict:
 
             # 식약처 API는 오류 시 HTTP 200 + HTML을 반환함
             if text.lstrip().startswith("<"):
-                import re as _re
-                match = _re.search(r"alert\('([^']+)'\)", text)
+                match = re.search(r"alert\('([^']+)'\)", text)
                 msg = match.group(1) if match else "식약처 API 일시 오류"
                 logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} — HTML response: {msg}")
                 if attempt < MAX_RETRIES - 1:

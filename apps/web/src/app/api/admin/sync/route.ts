@@ -191,6 +191,12 @@ export async function POST(req: NextRequest) {
 
             if (error) {
               failedBatches++
+              controller.enqueue(send({
+                type: 'error',
+                batch: batchNum,
+                totalBatches,
+                message: `배치 ${batchNum} upsert 실패: ${error.message}`,
+              }))
             } else {
               totalUpserted += upserted?.length ?? 0
             }
