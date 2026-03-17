@@ -84,8 +84,8 @@ export function IngredientExplain({ productId }: IngredientExplainProps) {
               {/* Per-ingredient explanations */}
               {explanation.ingredients.length > 0 && (
                 <div className="space-y-3">
-                  {explanation.ingredients.map((item) => (
-                    <div key={item.name}>
+                  {explanation.ingredients.map((item, idx) => (
+                    <div key={`${item.name}-${idx}`}>
                       <h4 className="text-sm font-medium text-foreground">
                         {item.name}
                       </h4>
