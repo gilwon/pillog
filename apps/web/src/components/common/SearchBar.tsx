@@ -2,7 +2,7 @@
 
 import { Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 const SEARCH_DEBOUNCE_MS = 300
@@ -23,6 +23,10 @@ export function SearchBar({
   const router = useRouter()
   const [query, setQuery] = useState(defaultValue)
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    setQuery(defaultValue)
+  }, [defaultValue])
 
   const handleSearch = useCallback(
     (value: string) => {

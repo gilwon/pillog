@@ -23,14 +23,14 @@ function ProductSearchContent() {
     const params = new URLSearchParams()
     if (value.trim()) params.set('q', value.trim())
     if (match !== 'all') params.set('match', match)
-    router.push(`/products?${params}`)
+    router.replace(`/products?${params}`)
   }
 
   const handleMatchChange = (newMatch: 'all' | 'any') => {
     const params = new URLSearchParams()
     if (query) params.set('q', query)
     if (newMatch !== 'all') params.set('match', newMatch)
-    router.push(`/products?${params}`)
+    router.replace(`/products?${params}`)
   }
 
   return (
