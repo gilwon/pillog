@@ -1,10 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+function getSafeRedirect(value: string | null, fallback: string): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback
+  return value
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const redirect = searchParams.get('redirect') || '/'
+  const redirect = getSafeRedirect(searchParams.get('redirect'), '/')
 
   if (code) {
     const supabase = await createClient()

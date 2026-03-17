@@ -31,6 +31,13 @@ export async function GET(request: NextRequest) {
     const year = Number(searchParams.get('year')) || now.getFullYear()
     const month = Number(searchParams.get('month')) || now.getMonth() + 1
 
+    if (month < 1 || month > 12 || year < 2000 || year > 2100) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: '유효한 연/월 값이 필요합니다.', status: 400 } },
+        { status: 400 }
+      )
+    }
+
     // 월의 시작/끝 날짜
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`
     const endDate =

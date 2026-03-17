@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
 
     const productId = request.nextUrl.searchParams.get('product_id')
     if (productId) {
+      if (!isValidUUID(productId)) {
+        return NextResponse.json({ registered: false })
+      }
       const { data } = await supabase
         .from('user_supplements')
         .select('id')

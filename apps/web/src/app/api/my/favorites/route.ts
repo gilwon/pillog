@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
 
     const productId = request.nextUrl.searchParams.get('product_id')
     if (productId) {
+      if (!isValidUUID(productId)) {
+        return NextResponse.json({ favorited: false })
+      }
       const { data } = await supabase
         .from('user_favorites')
         .select('id')

@@ -22,17 +22,21 @@ export function useProductActions(productId: string): UseProductActionsReturn {
 
   useEffect(() => {
     const checkStatus = async () => {
-      const [suppRes, favRes] = await Promise.all([
-        fetch(`/api/my/supplements?product_id=${productId}`),
-        fetch(`/api/my/favorites?product_id=${productId}`),
-      ])
-      if (suppRes.ok) {
-        const { registered } = await suppRes.json()
-        setIsSupplement(!!registered)
-      }
-      if (favRes.ok) {
-        const { favorited } = await favRes.json()
-        setIsFavorite(!!favorited)
+      try {
+        const [suppRes, favRes] = await Promise.all([
+          fetch(`/api/my/supplements?product_id=${productId}`),
+          fetch(`/api/my/favorites?product_id=${productId}`),
+        ])
+        if (suppRes.ok) {
+          const { registered } = await suppRes.json()
+          setIsSupplement(!!registered)
+        }
+        if (favRes.ok) {
+          const { favorited } = await favRes.json()
+          setIsFavorite(!!favorited)
+        }
+      } catch {
+        // 비로그인 또는 네트워크 에러 — 기본값 유지
       }
     }
     checkStatus()

@@ -170,6 +170,12 @@ export async function POST(request: NextRequest) {
     }
 
     const date = taken_date || new Date().toISOString().split('T')[0]
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: '날짜 형식은 YYYY-MM-DD여야 합니다.', status: 400 } },
+        { status: 400 }
+      )
+    }
 
     const { error } = await supabase
       .from('intake_logs')

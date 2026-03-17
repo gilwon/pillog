@@ -1,9 +1,7 @@
-import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// 같은 서버 렌더 요청 내에서 auth 중복 호출 방지
-const getAdminUser = cache(async () => {
+async function getAdminUser() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -16,7 +14,7 @@ const getAdminUser = cache(async () => {
 
   if (profile?.role !== 'admin') return null
   return { user, supabase }
-})
+}
 
 /**
  * 서버 사이드에서 관리자 인증을 확인합니다.

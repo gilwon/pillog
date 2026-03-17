@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 function LoginContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const redirect = searchParams.get('redirect') || '/'
+  const rawRedirect = searchParams.get('redirect') || '/'
+  const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/'
   const supabase = createClient()
 
   const [mode, setMode] = useState<'login' | 'signup'>('login')

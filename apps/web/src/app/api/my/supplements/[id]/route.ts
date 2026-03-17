@@ -41,6 +41,13 @@ export async function PATCH(
     if (body.note !== undefined) updates.note = body.note
     if (body.started_at !== undefined) updates.started_at = body.started_at
 
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: '수정할 필드가 없습니다.', status: 400 } },
+        { status: 400 }
+      )
+    }
+
     const { data, error } = await supabase
       .from('user_supplements')
       .update(updates)
