@@ -95,13 +95,13 @@ export async function GET(
     const stream = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       max_tokens: 2048,
-      temperature: 0.3,
+      temperature: 0.2,
       stream: true,
       messages: [
         {
           role: 'system',
           content:
-            '당신은 건강기능식품 성분 전문가입니다. 일반 소비자가 쉽게 이해할 수 있도록 친근하고 정확한 한국어로 성분을 설명해주세요. 반드시 유효한 JSON으로만 응답하세요.',
+            '당신은 건강기능식품 성분 전문가입니다. 일반 소비자가 쉽게 이해할 수 있도록 친근하고 정확한 한국어로 성분을 설명해주세요. 반드시 유효한 JSON으로만 응답하세요.\n\n중요: 한국어 맞춤법과 띄어쓰기를 정확하게 지켜주세요. 성분명은 원재료에 표기된 그대로 사용하고, 임의로 변형하지 마세요. 조사(은/는, 이/가, 을/를)를 올바르게 사용하세요.',
         },
         {
           role: 'user',

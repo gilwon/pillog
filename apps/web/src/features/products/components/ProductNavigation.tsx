@@ -19,10 +19,10 @@ export function ProductNavigation({ prev, next }: ProductNavigationProps) {
       {prev ? (
         <Link
           href={`/products/${prev.id}`}
-          className="group flex flex-1 items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"
+          className="group flex max-w-[50%] flex-1 items-center gap-3 overflow-hidden rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"
         >
           <ChevronLeft className="h-5 w-5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">이전 제품</p>
             <p className="truncate text-sm font-medium transition-colors group-hover:text-primary">
               {prev.name}
@@ -36,9 +36,9 @@ export function ProductNavigation({ prev, next }: ProductNavigationProps) {
       {next ? (
         <Link
           href={`/products/${next.id}`}
-          className="group flex flex-1 items-center justify-end gap-3 rounded-xl border border-border bg-card p-4 text-right transition-colors hover:border-primary/40 hover:bg-primary/5"
+          className="group flex max-w-[50%] flex-1 items-center justify-end gap-3 overflow-hidden rounded-xl border border-border bg-card p-4 text-right transition-colors hover:border-primary/40 hover:bg-primary/5"
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">다음 제품</p>
             <p className="truncate text-sm font-medium transition-colors group-hover:text-primary">
               {next.name}
