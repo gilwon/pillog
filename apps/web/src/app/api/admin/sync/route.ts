@@ -120,8 +120,8 @@ export async function POST(req: NextRequest) {
   if (since) {
     changeDate = since.replace(/-/g, '')
   } else if (!full) {
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
+    const now = new Date()
+    const yesterday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1))
     changeDate = yesterday.toISOString().slice(0, 10).replace(/-/g, '')
   }
 
@@ -195,8 +195,15 @@ export async function POST(req: NextRequest) {
               totalUpserted += upserted?.length ?? 0
             }
           }
-        } catch {
+        } catch (err) {
           failedBatches++
+          const msg = err instanceof Error ? err.message : String(err)
+          controller.enqueue(send({
+            type: 'error',
+            batch: batchNum,
+            totalBatches,
+            message: `배치 ${batchNum} 실패: ${msg}`,
+          }))
         }
 
         controller.enqueue(send({
@@ -265,7 +272,9 @@ export async function POST(req: NextRequest) {
           await supabase
             .from('sync_logs')
             .update({
-              status: failedBatches > 0 && totalUpserted === 0 ? 'failed' : 'completed',
+              status: failedBatches > 0
+                ? totalUpserted === 0 ? 'failed' : 'partial'
+                : 'completed',
               total_fetched: total,
               new_count: logProducts.filter((p: { change_type: string }) => p.change_type === 'new').length,
               updated_count: logProducts.filter((p: { change_type: string }) => p.change_type === 'updated').length,

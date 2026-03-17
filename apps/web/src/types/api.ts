@@ -168,7 +168,7 @@ export interface SyncLog {
   updated_count: number
   deactivated_count: number
   failed_batches: number
-  status: 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'partial' | 'failed'
   error_message: string | null
   started_at: string
   completed_at: string | null

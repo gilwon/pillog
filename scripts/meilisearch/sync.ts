@@ -18,6 +18,14 @@ import { MeiliSearch } from 'meilisearch'
 
 const SYNC_LOOKBACK_HOURS = 2  // 안전 여유를 위해 2시간 전부터
 
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'MEILISEARCH_HOST', 'MEILISEARCH_API_KEY'] as const
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`Missing required environment variable: ${key}`)
+    process.exit(1)
+  }
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!

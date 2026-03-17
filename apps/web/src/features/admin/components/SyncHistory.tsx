@@ -18,8 +18,9 @@ function StatusBadge({ status }: { status: SyncLog['status'] }) {
     completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     running: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    partial: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   }
-  const label = { completed: '완료', running: '진행중', failed: '실패' }
+  const label = { completed: '완료', running: '진행중', failed: '실패', partial: '일부실패' }
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status]}`}>
       {status === 'running' && (

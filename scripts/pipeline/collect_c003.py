@@ -21,7 +21,7 @@ import time
 import re
 import argparse
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
@@ -128,7 +128,7 @@ def transform_product(item: dict) -> dict:
         "storage_method": item.get("CSTDY_MTHD") or None,
         "raw_materials": item.get("RAWMTRL_NM") or None,
         "reported_at": reported_at,
-        "synced_at": datetime.utcnow().isoformat(),
+        "synced_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -137,7 +137,7 @@ def upsert_products(products: list[dict]) -> int:
     if not products:
         return 0
 
-    url = f"{SUPABASE_URL}/rest/v1/products"
+    url = f"{SUPABASE_URL}/rest/v1/products?on_conflict=report_no"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -176,7 +176,7 @@ def main():
         change_date = args.since.replace("-", "")
     elif not args.full:
         # Default: yesterday's changes
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y%m%d")
         change_date = yesterday
 
     logger.info(f"Starting C003 collection (change_date={change_date or 'FULL'})")
