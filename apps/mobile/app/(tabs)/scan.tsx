@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useRouter } from 'expo-router'
+import { colors, radius, fontSize } from '@/lib/theme'
 import type { BarcodeScanResult } from '@pillog/types'
 
 export default function ScanScreen() {
@@ -13,7 +14,6 @@ export default function ScanScreen() {
     ({ type, data }: BarcodeScanResult) => {
       if (scanned) return
       setScanned(true)
-      // 바코드 데이터로 제품 검색 → 제품 상세 화면으로 이동
       router.push(`/product/barcode?code=${encodeURIComponent(data)}&type=${type}`)
     },
     [scanned, router]
@@ -50,7 +50,6 @@ export default function ScanScreen() {
           barcodeTypes: ['ean13', 'ean8', 'upc_a', 'qr'],
         }}
       >
-        {/* 스캔 가이드 오버레이 */}
         <View style={styles.overlay}>
           <View style={styles.scanArea} />
           <Text style={styles.scanHint}>제품 바코드를 박스 안에 맞춰주세요</Text>
@@ -73,10 +72,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  camera: {
-    flex: 1,
-    width: '100%',
-  },
+  camera: { flex: 1, width: '100%' },
   overlay: {
     flex: 1,
     alignItems: 'center',
@@ -87,39 +83,31 @@ const styles = StyleSheet.create({
     width: 280,
     height: 140,
     borderWidth: 2,
-    borderColor: '#6366f1',
-    borderRadius: 8,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
     backgroundColor: 'transparent',
   },
-  scanHint: {
-    color: '#fff',
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  scanHint: { color: '#fff', fontSize: fontSize.md, textAlign: 'center' },
   message: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: fontSize.lg,
     textAlign: 'center',
     marginHorizontal: 32,
     marginBottom: 20,
   },
   button: {
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: radius.md,
   },
   rescanButton: {
     position: 'absolute',
     bottom: 40,
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.primary,
     paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: radius.md,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonText: { color: '#fff', fontSize: fontSize.lg, fontWeight: '600' },
 })

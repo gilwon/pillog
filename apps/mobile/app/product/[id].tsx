@@ -3,17 +3,18 @@ import {
   View,
   Text,
   ScrollView,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { pillogApi } from '@/lib/api'
+import { colors, radius, fontSize, spacing } from '@/lib/theme'
 import type { ProductWithIngredients } from '@pillog/types'
-
-const DISCLAIMER = '이 정보는 식약처 공공데이터를 기반으로 하며, 의학적 조언이 아닙니다.'
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
   const [product, setProduct] = useState<ProductWithIngredients | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -29,7 +30,7 @@ export default function ProductDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#6366f1" size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     )
   }
@@ -42,58 +43,96 @@ export default function ProductDetailScreen() {
     )
   }
 
+  const getRdiColor = (amount: number, rdi: number, ul?: number | null) => {
+    if (ul && amount > ul) return colors.warning
+    const pct = (amount / rdi) * 100
+    if (pct > 150) return colors.caution
+    return colors.safe
+  }
+
+  // Parse raw_materials
+  const rawMaterialItems = product.raw_materials
+    ? product.raw_materials.split(',').map((s: string) => s.trim()).filter(Boolean)
+    : []
+
   return (
     <ScrollView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.productName}>{product.name}</Text>
         <Text style={styles.company}>{product.company}</Text>
-        <View style={styles.tags}>
-          {product.functionality_tags.map((tag) => (
-            <View key={tag} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+        <Text style={styles.productName}>{product.name}</Text>
+        {product.functionality_tags.length > 0 && (
+          <View style={styles.tags}>
+            {product.functionality_tags.map((tag, i) => (
+              <View key={`${tag}-${i}`} style={styles.tag}>
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Ingredients */}
+      {product.ingredients.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>기능성 원료</Text>
+          {product.ingredients.map((ing) => (
+            <View key={ing.id} style={styles.ingredientRow}>
+              <View style={styles.ingredientHeader}>
+                <Text style={styles.ingredientName}>{ing.canonical_name}</Text>
+                {ing.amount != null && (
+                  <Text style={[styles.ingredientAmount, { color: colors.primary }]}>
+                    {ing.amount}{ing.amount_unit || 'mg'}
+                  </Text>
+                )}
+              </View>
+              {ing.description && (
+                <Text style={styles.ingredientDesc}>{ing.description}</Text>
+              )}
+              {ing.daily_rdi != null && ing.amount != null && (
+                <View style={styles.rdiBar}>
+                  <View style={styles.rdiTrack}>
+                    <View
+                      style={[
+                        styles.rdiProgress,
+                        {
+                          width: `${Math.min((ing.amount / ing.daily_rdi) * 100, 100)}%`,
+                          backgroundColor: getRdiColor(ing.amount, ing.daily_rdi, ing.daily_ul),
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.rdiText}>
+                    RDI 대비 {Math.round((ing.amount / ing.daily_rdi) * 100)}%
+                  </Text>
+                </View>
+              )}
             </View>
           ))}
         </View>
-      </View>
+      )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>성분 정보</Text>
-        {product.ingredients.map((ing) => (
-          <View key={ing.id} style={styles.ingredientRow}>
-            <View style={styles.ingredientHeader}>
-              <Text style={styles.ingredientName}>{ing.canonical_name}</Text>
-              {ing.amount != null && (
-                <Text style={styles.ingredientAmount}>
-                  {ing.amount} {ing.amount_unit}
-                </Text>
-              )}
-            </View>
-            {ing.description && (
-              <Text style={styles.ingredientDesc}>{ing.description}</Text>
-            )}
-            {ing.daily_rdi != null && ing.amount != null && (
-              <View style={styles.rdiBar}>
-                <View
-                  style={[
-                    styles.rdiProgress,
-                    {
-                      width: `${Math.min((ing.amount / ing.daily_rdi) * 100, 100)}%`,
-                      backgroundColor:
-                        ing.daily_ul && ing.amount > ing.daily_ul
-                          ? '#ef4444'
-                          : '#6366f1',
-                    },
-                  ]}
-                />
-                <Text style={styles.rdiText}>
-                  권장량 대비 {Math.round((ing.amount / ing.daily_rdi) * 100)}%
-                </Text>
-              </View>
-            )}
+      {/* Raw materials */}
+      {rawMaterialItems.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>원재료</Text>
+          <View style={styles.rawMaterialsWrap}>
+            {rawMaterialItems.map((item, i) => (
+              <Pressable
+                key={`raw-${i}`}
+                style={styles.rawMaterialChip}
+                onPress={() => {
+                  router.push(`/(tabs)/search`)
+                }}
+              >
+                <Text style={styles.rawMaterialText}>{item}</Text>
+              </Pressable>
+            ))}
           </View>
-        ))}
-      </View>
+        </View>
+      )}
 
+      {/* Details */}
       {product.how_to_take && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>섭취 방법</Text>
@@ -104,59 +143,105 @@ export default function ProductDetailScreen() {
       {product.caution && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>주의사항</Text>
-          <Text style={styles.sectionContent}>{product.caution}</Text>
+          <Text style={styles.cautionContent}>{product.caution}</Text>
         </View>
       )}
 
-      <Text style={styles.disclaimer}>{DISCLAIMER}</Text>
+      {product.storage_method && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>보관방법</Text>
+          <Text style={styles.sectionContent}>{product.storage_method}</Text>
+        </View>
+      )}
+
+      <Text style={styles.disclaimer}>
+        이 정보는 식약처 공공데이터를 기반으로 하며, 의학적 조언이 아닙니다.
+      </Text>
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorText: { color: '#6b7280', fontSize: 16 },
-  header: { backgroundColor: '#fff', padding: 20, marginBottom: 8 },
-  productName: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  company: { fontSize: 14, color: '#6b7280', marginTop: 4 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  errorText: { color: colors.textSecondary, fontSize: fontSize.lg },
+
+  // Header
+  header: {
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  company: { fontSize: fontSize.sm, color: colors.textSecondary, marginBottom: spacing.xs },
+  productName: { fontSize: fontSize.xl, fontWeight: '700', color: colors.text },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   tag: {
-    backgroundColor: '#ede9fe',
-    borderRadius: 4,
-    paddingHorizontal: 8,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
-  tagText: { fontSize: 12, color: '#6366f1' },
-  section: { backgroundColor: '#fff', padding: 20, marginBottom: 8 },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+  tagText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: '500' },
+
+  // Sections
+  section: {
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  sectionContent: { fontSize: 14, color: '#374151', lineHeight: 22 },
+  sectionTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
+  },
+  sectionContent: { fontSize: fontSize.md, color: colors.textSecondary, lineHeight: 22 },
+  cautionContent: { fontSize: fontSize.md, color: colors.warning, lineHeight: 22 },
+
+  // Ingredients
   ingredientRow: {
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: colors.background,
   },
   ingredientHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  ingredientName: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  ingredientAmount: { fontSize: 14, color: '#6366f1', fontWeight: '600' },
-  ingredientDesc: { fontSize: 13, color: '#6b7280', marginTop: 4 },
-  rdiBar: { marginTop: 8 },
-  rdiProgress: { height: 4, borderRadius: 2, marginBottom: 4 },
-  rdiText: { fontSize: 11, color: '#9ca3af' },
+  ingredientName: { fontSize: fontSize.lg - 1, fontWeight: '600', color: colors.text, flex: 1 },
+  ingredientAmount: { fontSize: fontSize.md, fontWeight: '600' },
+  ingredientDesc: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: spacing.xs },
+  rdiBar: { marginTop: spacing.sm },
+  rdiTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.background,
+    marginBottom: spacing.xs,
+  },
+  rdiProgress: { height: 4, borderRadius: 2 },
+  rdiText: { fontSize: fontSize.xs, color: colors.textTertiary },
+
+  // Raw materials
+  rawMaterialsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  rawMaterialChip: {
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    backgroundColor: colors.background,
+  },
+  rawMaterialText: { fontSize: fontSize.sm, color: colors.text },
+
+  // Disclaimer
   disclaimer: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
     textAlign: 'center',
-    padding: 20,
+    padding: spacing.xl,
     lineHeight: 18,
   },
 })

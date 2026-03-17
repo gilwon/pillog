@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -8,25 +8,37 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { pillogApi } from '@/lib/api'
+import { colors, radius, fontSize, spacing } from '@/lib/theme'
 import type { ProductSearchResult } from '@pillog/types'
+
+const POPULAR_TAGS = [
+  '항산화', '피부건강', '면역력', '피로회복',
+  '눈건강', '장건강', '뼈건강', '혈행개선',
+]
+
+const SUGGEST_DEBOUNCE_MS = 250
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ProductSearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
   const router = useRouter()
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleSearch = useCallback(async (text: string) => {
-    setQuery(text)
-    if (text.length < 2) {
+  const fetchResults = useCallback(async (text: string) => {
+    if (text.trim().length < 2) {
       setResults([])
+      setSearched(false)
       return
     }
     setLoading(true)
+    setSearched(true)
     try {
-      const { data } = await pillogApi.searchProducts(text)
+      const { data } = await pillogApi.searchProducts(text.trim())
       setResults(data)
     } catch {
       setResults([])
@@ -35,43 +47,83 @@ export default function SearchScreen() {
     }
   }, [])
 
+  const handleChange = useCallback((text: string) => {
+    setQuery(text)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchResults(text), SUGGEST_DEBOUNCE_MS)
+  }, [fetchResults])
+
+  const handleTagPress = (tag: string) => {
+    setQuery(tag)
+    fetchResults(tag)
+  }
+
   return (
     <View style={styles.container}>
+      {/* Search bar */}
       <View style={styles.searchBar}>
-        <TextInput
-          style={styles.input}
-          placeholder="제품명 또는 성분명 검색"
-          value={query}
-          onChangeText={handleSearch}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-        />
+        <View style={styles.inputWrapper}>
+          <Ionicons name="search-outline" size={18} color={colors.textTertiary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="영양제 이름 또는 성분을 검색하세요"
+            placeholderTextColor={colors.textTertiary}
+            value={query}
+            onChangeText={handleChange}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            onSubmitEditing={() => fetchResults(query)}
+          />
+        </View>
       </View>
 
-      {loading && <ActivityIndicator style={styles.loader} color="#6366f1" />}
+      {/* Popular tags — only when no search */}
+      {!searched && (
+        <View style={styles.tagsContainer}>
+          <Text style={styles.tagsLabel}>인기 검색어</Text>
+          <View style={styles.tagsRow}>
+            {POPULAR_TAGS.map((tag) => (
+              <Pressable key={tag} style={styles.tagChip} onPress={() => handleTagPress(tag)}>
+                <Text style={styles.tagChipText}>{tag}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {loading && <ActivityIndicator style={styles.loader} color={colors.primary} />}
 
       <FlatList
         data={results}
         keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <Pressable
             style={styles.resultItem}
             onPress={() => router.push(`/product/${item.id}`)}
           >
-            <Text style={styles.productName}>{item.name}</Text>
-            <Text style={styles.company}>{item.company}</Text>
-            <View style={styles.tags}>
-              {item.functionality_tags.slice(0, 3).map((tag) => (
-                <View key={tag} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
-                </View>
-              ))}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.productName}>{item.name}</Text>
+              <Text style={styles.company}>{item.company}</Text>
             </View>
+            {item.functionality_tags.length > 0 && (
+              <View style={styles.tags}>
+                {item.functionality_tags.slice(0, 2).map((tag) => (
+                  <View key={tag} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </Pressable>
         )}
         ListEmptyComponent={
-          query.length >= 2 && !loading ? (
-            <Text style={styles.emptyText}>검색 결과가 없습니다.</Text>
+          searched && !loading ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={40} color={colors.textTertiary} />
+              <Text style={styles.emptyText}>검색 결과가 없습니다.</Text>
+              <Text style={styles.emptySubtext}>다른 키워드로 검색해보세요.</Text>
+            </View>
           ) : null
         }
       />
@@ -80,36 +132,90 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: colors.background },
   searchBar: {
-    padding: 16,
-    backgroundColor: '#fff',
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.surfaceBorder,
   },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  searchIcon: { marginLeft: spacing.md },
   input: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    paddingHorizontal: 14,
+    flex: 1,
+    paddingHorizontal: spacing.md,
     paddingVertical: 10,
-    fontSize: 16,
+    fontSize: fontSize.lg,
+    color: colors.text,
   },
-  loader: { marginTop: 20 },
-  resultItem: {
-    backgroundColor: '#fff',
-    padding: 16,
+  tagsContainer: {
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: colors.surfaceBorder,
   },
-  productName: { fontSize: 16, fontWeight: '600', color: '#111827' },
-  company: { fontSize: 13, color: '#6b7280', marginTop: 2 },
-  tags: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  tagsLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textTertiary,
+    marginBottom: spacing.sm,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  tagChip: {
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  tagChipText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  loader: { marginTop: spacing.xl },
+  resultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.background,
+    gap: spacing.md,
+  },
+  productName: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text },
+  company: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
+  tags: { flexDirection: 'row', gap: spacing.xs },
   tag: {
-    backgroundColor: '#ede9fe',
-    borderRadius: 4,
-    paddingHorizontal: 8,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   },
-  tagText: { fontSize: 11, color: '#6366f1' },
-  emptyText: { textAlign: 'center', marginTop: 40, color: '#9ca3af' },
+  tagText: { fontSize: fontSize.xs, color: colors.primary },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: spacing.sm,
+  },
+  emptyText: {
+    fontSize: fontSize.lg,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: fontSize.sm,
+    color: colors.textTertiary,
+  },
 })

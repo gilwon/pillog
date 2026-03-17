@@ -14,9 +14,9 @@ import {
 import { useRouter } from 'expo-router'
 import { useAuth } from '@/lib/auth'
 import { pillogApi } from '@/lib/api'
+import { colors, radius, fontSize, spacing } from '@/lib/theme'
 import type { UserSupplement } from '@pillog/types'
 
-// getMySupplements는 products 조인 포함 반환
 type SupplementWithProduct = UserSupplement & {
   products: {
     id: string
@@ -27,17 +27,17 @@ type SupplementWithProduct = UserSupplement & {
   } | null
 }
 
-// ─── Loading ───────────────────────────────────────────────────────────────
+// ─── Loading ────────────────────────────────────────────────────────────────
 
 function LoadingView() {
   return (
     <View style={styles.center}>
-      <ActivityIndicator color="#6366f1" size="large" />
+      <ActivityIndicator color={colors.primary} size="large" />
     </View>
   )
 }
 
-// ─── Login ─────────────────────────────────────────────────────────────────
+// ─── Login ──────────────────────────────────────────────────────────────────
 
 function LoginView() {
   const { signIn } = useAuth()
@@ -70,6 +70,7 @@ function LoginView() {
       <TextInput
         style={styles.input}
         placeholder="이메일"
+        placeholderTextColor={colors.textTertiary}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -79,6 +80,7 @@ function LoginView() {
       <TextInput
         style={styles.input}
         placeholder="비밀번호"
+        placeholderTextColor={colors.textTertiary}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -165,6 +167,7 @@ function AddSupplementModal({ visible, userId, onClose, onAdded }: AddSupplement
           <TextInput
             style={styles.searchInput}
             placeholder="제품명 또는 성분명 검색"
+            placeholderTextColor={colors.textTertiary}
             value={query}
             onChangeText={handleSearch}
             autoFocus
@@ -172,11 +175,12 @@ function AddSupplementModal({ visible, userId, onClose, onAdded }: AddSupplement
           />
         </View>
 
-        {loading && <ActivityIndicator style={styles.loader} color="#6366f1" />}
+        {loading && <ActivityIndicator style={styles.loader} color={colors.primary} />}
 
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <Pressable
               style={styles.resultItem}
@@ -188,7 +192,7 @@ function AddSupplementModal({ visible, userId, onClose, onAdded }: AddSupplement
                 <Text style={styles.resultCompany}>{item.company}</Text>
               </View>
               {adding === item.id ? (
-                <ActivityIndicator color="#6366f1" size="small" />
+                <ActivityIndicator color={colors.primary} size="small" />
               ) : (
                 <Text style={styles.addButtonText}>추가</Text>
               )}
@@ -205,13 +209,9 @@ function AddSupplementModal({ visible, userId, onClose, onAdded }: AddSupplement
   )
 }
 
-// ─── My Supplements View ───────────────────────────────────────────────────
+// ─── My Supplements View ────────────────────────────────────────────────────
 
-interface MySupplementsViewProps {
-  userId: string
-}
-
-function MySupplementsView({ userId }: MySupplementsViewProps) {
+function MySupplementsView({ userId }: { userId: string }) {
   const router = useRouter()
   const { signOut } = useAuth()
   const [supplements, setSupplements] = useState<SupplementWithProduct[]>([])
@@ -241,13 +241,12 @@ function MySupplementsView({ userId }: MySupplementsViewProps) {
   }
 
   const handleDoseChange = async (id: string, newDose: number) => {
-    // 낙관적 업데이트
     const prev = supplements
     setSupplements((s) => s.map((item) => item.id === id ? { ...item, daily_dose: newDose } : item))
     try {
       await pillogApi.updateSupplement(id, userId, newDose)
     } catch {
-      setSupplements(prev) // 롤백
+      setSupplements(prev)
       Alert.alert('오류', '복용량 변경에 실패했습니다.')
     }
   }
@@ -289,7 +288,7 @@ function MySupplementsView({ userId }: MySupplementsViewProps) {
         data={supplements}
         keyExtractor={(item) => item.id}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#6366f1" />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
         renderItem={({ item }) => {
           const product = item.products
@@ -339,7 +338,6 @@ function MySupplementsView({ userId }: MySupplementsViewProps) {
         }
       />
 
-      {/* 영양제 추가 FAB */}
       <Pressable style={styles.fab} onPress={() => setShowAddModal(true)}>
         <Text style={styles.fabText}>+</Text>
       </Pressable>
@@ -367,93 +365,94 @@ export default function MyScreen() {
 // ─── Styles ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.background },
 
   // Login
   loginContainer: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-    padding: 24,
+    backgroundColor: colors.background,
+    padding: spacing.xxl,
     justifyContent: 'center',
   },
-  loginTitle: { fontSize: 24, fontWeight: '700', color: '#111827', marginBottom: 8 },
-  loginSubtitle: { fontSize: 15, color: '#6b7280', marginBottom: 32 },
+  loginTitle: { fontSize: fontSize.xxl, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+  loginSubtitle: { fontSize: fontSize.lg - 1, color: colors.textSecondary, marginBottom: 32 },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 12,
+    fontSize: fontSize.lg,
+    color: colors.text,
+    marginBottom: spacing.md,
   },
-  errorText: { color: '#ef4444', fontSize: 13, marginBottom: 12 },
+  errorText: { color: colors.destructive, fontSize: fontSize.sm, marginBottom: spacing.md },
   loginButton: {
-    backgroundColor: '#6366f1',
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   loginButtonDisabled: { opacity: 0.6 },
-  loginButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  loginButtonText: { color: '#fff', fontSize: fontSize.lg, fontWeight: '600' },
 
   // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.surfaceBorder,
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  signOutText: { fontSize: 14, color: '#9ca3af' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  signOutText: { fontSize: fontSize.md, color: colors.textTertiary },
 
   // Supplement item
   supplementItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    gap: 8,
+    borderBottomColor: colors.background,
+    gap: spacing.sm,
   },
   supplementInfo: { flex: 1, minWidth: 0 },
-  supplementName: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  supplementCompany: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
+  supplementName: { fontSize: fontSize.lg - 1, fontWeight: '600', color: colors.text },
+  supplementCompany: { fontSize: fontSize.xs, color: colors.textTertiary, marginTop: 2 },
 
   // Dose control
   doseControl: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   doseBtn: {
     width: 28,
     height: 28,
-    borderRadius: 4,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: colors.surfaceBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
-  doseBtnDisabled: { borderColor: '#e5e7eb', opacity: 0.4 },
-  doseBtnText: { fontSize: 16, color: '#374151', lineHeight: 20 },
-  doseValue: { minWidth: 24, textAlign: 'center', fontSize: 15, fontWeight: '600', color: '#111827' },
-  doseUnit: { fontSize: 11, color: '#9ca3af' },
+  doseBtnDisabled: { opacity: 0.4 },
+  doseBtnText: { fontSize: fontSize.lg, color: colors.text, lineHeight: 20 },
+  doseValue: { minWidth: 24, textAlign: 'center', fontSize: fontSize.lg - 1, fontWeight: '600', color: colors.text },
+  doseUnit: { fontSize: fontSize.xs, color: colors.textTertiary },
 
   // Delete
   deleteBtn: { padding: 6 },
-  deleteBtnText: { fontSize: 14, color: '#d1d5db' },
+  deleteBtnText: { fontSize: fontSize.md, color: colors.textTertiary },
 
   // Empty
   emptyContainer: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: '#9ca3af', textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.sm },
+  emptySubtitle: { fontSize: fontSize.md, color: colors.textTertiary, textAlign: 'center', lineHeight: 20 },
 
   // FAB
   fab: {
@@ -463,10 +462,10 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#6366f1',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#6366f1',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -475,46 +474,47 @@ const styles = StyleSheet.create({
   fabText: { color: '#fff', fontSize: 26, lineHeight: 30 },
 
   // Modal
-  modalContainer: { flex: 1, backgroundColor: '#f9fafb' },
+  modalContainer: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.surfaceBorder,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: '#111827' },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   modalClose: { padding: 4 },
-  modalCloseText: { fontSize: 15, color: '#6366f1' },
+  modalCloseText: { fontSize: fontSize.lg - 1, color: colors.primary },
   searchBar: {
-    padding: 16,
-    backgroundColor: '#fff',
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.surfaceBorder,
   },
   searchInput: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 16,
+    fontSize: fontSize.lg,
+    color: colors.text,
   },
-  loader: { marginTop: 20 },
+  loader: { marginTop: spacing.xl },
   resultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: colors.background,
   },
   resultInfo: { flex: 1 },
-  resultName: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  resultCompany: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
-  addButtonText: { fontSize: 14, fontWeight: '600', color: '#6366f1' },
-  emptyText: { textAlign: 'center', marginTop: 40, color: '#9ca3af', fontSize: 14 },
+  resultName: { fontSize: fontSize.lg - 1, fontWeight: '600', color: colors.text },
+  resultCompany: { fontSize: fontSize.xs, color: colors.textTertiary, marginTop: 2 },
+  addButtonText: { fontSize: fontSize.md, fontWeight: '600', color: colors.primary },
+  emptyText: { textAlign: 'center', marginTop: 40, color: colors.textTertiary, fontSize: fontSize.md },
 })
