@@ -40,9 +40,12 @@ export default function ComparePage() {
                 comparison_table: [],
               }}
             />
-            <Button variant="outline" size="sm" onClick={clearAll}>
+            <button
+              onClick={clearAll}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
               전체 삭제
-            </Button>
+            </button>
           </div>
         )}
       </div>
