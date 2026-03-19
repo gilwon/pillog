@@ -10,23 +10,10 @@ export async function GET(
     const { supabase } = await requireAdmin()
     const { id } = await params
 
-    const { data: product, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error || !product) {
-      return NextResponse.json(
-        { error: { code: 'PRODUCT_NOT_FOUND', message: '제품을 찾을 수 없습니다.', status: 404 } },
-        { status: 404 }
-      )
-    }
-
-    // 성분 정보 포함
-    const { data: ingredients } = await supabase
-      .from('product_ingredients')
-      .select(`
+    // 제품 + 성분 병렬 조회
+    const [productResult, ingredientsResult] = await Promise.all([
+      supabase.from('products').select('*').eq('id', id).single(),
+      supabase.from('product_ingredients').select(`
         id,
         ingredient_id,
         amount,
@@ -34,12 +21,19 @@ export async function GET(
         percentage_of_rdi,
         is_functional,
         ingredient:ingredients(canonical_name)
-      `)
-      .eq('product_id', id)
+      `).eq('product_id', id),
+    ])
+
+    if (productResult.error || !productResult.data) {
+      return NextResponse.json(
+        { error: { code: 'PRODUCT_NOT_FOUND', message: '제품을 찾을 수 없습니다.', status: 404 } },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json({
-      ...product,
-      ingredients: (ingredients || []).map((pi) => ({
+      ...productResult.data,
+      ingredients: (ingredientsResult.data || []).map((pi) => ({
         id: pi.id,
         ingredient_id: pi.ingredient_id,
         canonical_name: (pi.ingredient as unknown as { canonical_name: string })?.canonical_name || '',
