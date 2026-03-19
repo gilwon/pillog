@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { runIngredientSync } from '@/lib/admin/ingredient-sync'
+import { runIngredientSync, applyNutrientRdi } from '@/lib/admin/ingredient-sync'
 
 export const maxDuration = 300
 
@@ -242,6 +242,14 @@ export async function GET(req: NextRequest) {
       // 성분 연결 실패는 제품 동기화 결과에 영향 없음
     }
 
+    // RDI/UL 데이터 복사 (nutrient_rdi → ingredients)
+    let rdiApplied = 0
+    try {
+      rdiApplied = await applyNutrientRdi(supabase)
+    } catch {
+      // RDI 복사 실패는 동기화에 영향 없음
+    }
+
     return NextResponse.json({
       success: true,
       products: {
@@ -249,6 +257,7 @@ export async function GET(req: NextRequest) {
         upserted: totalUpserted,
         failedBatches,
       },
+      rdiApplied,
       ingredients: {
         linked: ingredientResult.totalLinked,
         matchedProducts: ingredientResult.matchedProducts,

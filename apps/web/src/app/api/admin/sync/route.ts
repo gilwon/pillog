@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/admin'
-import { runIngredientSync } from '@/lib/admin/ingredient-sync'
+import { runIngredientSync, applyNutrientRdi } from '@/lib/admin/ingredient-sync'
 
 export const maxDuration = 300 // 5분 (Vercel Pro 필요, 기본 60초)
 
@@ -312,6 +312,16 @@ export async function POST(req: NextRequest) {
             message: err instanceof Error ? err.message : '성분 연결 중 오류 발생',
           })
         )
+      }
+
+      // ─── RDI/UL 데이터 복사 (nutrient_rdi → ingredients) ──
+      try {
+        const rdiCount = await applyNutrientRdi(supabase)
+        if (rdiCount > 0) {
+          controller.enqueue(send({ type: 'rdi-applied', count: rdiCount }))
+        }
+      } catch {
+        // RDI 복사 실패는 동기화에 영향 없음
       }
 
       controller.close()

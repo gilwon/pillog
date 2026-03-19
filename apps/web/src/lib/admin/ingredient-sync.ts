@@ -224,3 +224,42 @@ export async function runIngredientSync(
 
   return { totalLinked, matchedProducts, total }
 }
+
+/**
+ * nutrient_rdi 테이블의 RDI/UL 데이터를 ingredients 테이블에 복사.
+ * 성분명(canonical_name)이 일치하는 경우 daily_rdi, daily_ul, rdi_unit, category를 업데이트.
+ * ingredients를 삭제/재수집해도 이 함수를 실행하면 RDI 데이터가 복원됨.
+ */
+export async function applyNutrientRdi(supabase: SupabaseClient): Promise<number> {
+  const { data: rdiRows } = await supabase
+    .from('nutrient_rdi')
+    .select('name, category, daily_rdi, daily_ul, rdi_unit, description')
+    .limit(500)
+
+  if (!rdiRows || rdiRows.length === 0) return 0
+
+  let updated = 0
+  for (const rdi of rdiRows) {
+    const { data: matched } = await supabase
+      .from('ingredients')
+      .select('id')
+      .eq('canonical_name', rdi.name)
+      .limit(1)
+
+    if (matched && matched.length > 0) {
+      await supabase
+        .from('ingredients')
+        .update({
+          daily_rdi: rdi.daily_rdi,
+          daily_ul: rdi.daily_ul,
+          rdi_unit: rdi.rdi_unit,
+          category: rdi.category,
+          primary_effect: rdi.description,
+        })
+        .eq('id', matched[0].id)
+      updated++
+    }
+  }
+
+  return updated
+}
