@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/admin'
+import { runIngredientSync } from '@/lib/admin/ingredient-sync'
 
 export const maxDuration = 300 // 5분 (Vercel Pro 필요, 기본 60초)
 
@@ -291,6 +292,27 @@ export async function POST(req: NextRequest) {
             ? `${totalUpserted.toLocaleString()}개 업데이트, ${deactivatedCount.toLocaleString()}개 API 제거 처리되었습니다.`
             : `${totalUpserted.toLocaleString()}개 제품이 업데이트되었습니다.`,
       }))
+
+      // ─── 성분 연결 자동 실행 ──────────────────────────
+      controller.enqueue(send({ type: 'ingredient-sync-start' }))
+
+      try {
+        const writer = (msg: object) => controller.enqueue(send(msg))
+
+        await runIngredientSync(supabase, writer, {
+          start: 'ingredient-start',
+          progress: 'ingredient-progress',
+          done: 'ingredient-done',
+          error: 'ingredient-error',
+        }, syncStart)
+      } catch (err) {
+        controller.enqueue(
+          send({
+            type: 'ingredient-error',
+            message: err instanceof Error ? err.message : '성분 연결 중 오류 발생',
+          })
+        )
+      }
 
       controller.close()
     },

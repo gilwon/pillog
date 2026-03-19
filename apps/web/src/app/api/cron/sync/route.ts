@@ -237,7 +237,7 @@ export async function GET(req: NextRequest) {
         progress: 'progress',
         done: 'done',
         error: 'error',
-      })
+      }, syncStart)
     } catch {
       // 성분 연결 실패는 제품 동기화 결과에 영향 없음
     }
