@@ -23,9 +23,14 @@ export async function GET(request: NextRequest) {
       : 'created_at'
     const ascending = searchParams.get('sortOrder') === 'asc'
 
+    const hasFilter = !!(query || status)
+
+    // 필터 없으면 planned(추정치)로 빠르게, 필터 있으면 exact로 정확하게
+    const countMethod = hasFilter ? 'exact' as const : 'planned' as const
+
     let queryBuilder = supabase
       .from('products')
-      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: 'exact' })
+      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: countMethod })
 
     // 상태 필터
     if (status === 'active') {
@@ -42,14 +47,11 @@ export async function GET(request: NextRequest) {
       queryBuilder = queryBuilder.or(`name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`)
     }
 
-    // 사용자 지정 정렬이 없으면 신고일 → 등록일 최근 순 기본 정렬
-    const isDefaultSort = sortByRaw === 'created_at' && !searchParams.has('sortBy')
-
+    // 정렬
+    const hasCustomSort = searchParams.has('sortBy')
     let sortedQuery = queryBuilder
-    if (isDefaultSort) {
-      sortedQuery = sortedQuery
-        .order('reported_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false })
+    if (!hasCustomSort) {
+      sortedQuery = sortedQuery.order('created_at', { ascending: false })
     } else {
       sortedQuery = sortedQuery.order(sortBy, { ascending })
     }
