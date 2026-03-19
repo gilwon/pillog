@@ -3,16 +3,15 @@
 import { useState } from 'react'
 import { useAdminIngredients } from '../hooks/useAdminIngredients'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, ChevronLeft, ChevronRight, Pencil, Loader2 } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Pencil, Loader2 } from 'lucide-react'
 import { IngredientForm } from './IngredientForm'
 import { AliasManager } from './AliasManager'
+import { AdminSearchInput } from './AdminSearchInput'
 import type { Ingredient } from '@/types/database'
 
 export function IngredientsTable() {
-  const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
   const [page, setPage] = useState(1)
@@ -21,12 +20,6 @@ export function IngredientsTable() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const { data, isLoading } = useAdminIngredients({ q: query, category, page, limit: 20 })
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setQuery(search)
-    setPage(1)
-  }
 
   const categories = ['비타민', '미네랄', '아미노산', '프로바이오틱스', '오메가', '허브', '기타']
 
@@ -48,15 +41,11 @@ export function IngredientsTable() {
 
           {/* Filters */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <form onSubmit={handleSearch} className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="성분명 검색..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </form>
+            <AdminSearchInput
+              placeholder="성분명 검색..."
+              type="ingredients"
+              onSearch={(q) => { setQuery(q); setPage(1) }}
+            />
             <div className="flex flex-wrap gap-1.5">
               <Button
                 variant={category === '' ? 'default' : 'outline'}

@@ -4,13 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useAdminProducts, useToggleProduct, useDeleteProduct } from '../hooks/useAdminProducts'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Search, Plus, ChevronLeft, ChevronRight, Power, Pencil, Loader2, ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, Trash2 } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Power, Pencil, Loader2, ChevronUp, ChevronDown, ChevronsUpDown, RotateCcw, Trash2 } from 'lucide-react'
+import { AdminSearchInput } from './AdminSearchInput'
 
 export function ProductsTable() {
-  const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<string>('')
   const [page, setPage] = useState(1)
@@ -38,12 +37,6 @@ export function ProductsTable() {
   const toggleMutation = useToggleProduct()
   const deleteMutation = useDeleteProduct()
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setQuery(search)
-    setPage(1)
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -59,15 +52,11 @@ export function ProductsTable() {
 
         {/* Filters */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <form onSubmit={handleSearch} className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="제품명, 업체명, 신고번호 검색..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </form>
+          <AdminSearchInput
+            placeholder="제품명, 업체명, 신고번호 검색..."
+            type="products"
+            onSearch={(q) => { setQuery(q); setPage(1) }}
+          />
           <div className="flex gap-1.5">
             {[
               { value: '', label: '전체' },
