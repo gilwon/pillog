@@ -7,6 +7,13 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
 import type { ProductCompareResponse, ComparisonItem } from '@/types/api'
 
+const PRODUCT_COLORS = [
+  { bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', dot: 'bg-blue-500', border: 'border-blue-500/30' },
+  { bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', dot: 'bg-violet-500', border: 'border-violet-500/30' },
+  { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', dot: 'bg-amber-500', border: 'border-amber-500/30' },
+  { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', dot: 'bg-emerald-500', border: 'border-emerald-500/30' },
+] as const
+
 async function fetchComparison(ids: string[]): Promise<ProductCompareResponse> {
   const res = await fetch(`/api/products/compare?ids=${ids.join(',')}`)
   if (!res.ok) throw new Error('Compare failed')
@@ -39,18 +46,33 @@ function RdiBar({ rdiPct }: { rdiPct: number }) {
   )
 }
 
+/** 성분이 포함된 제품 수를 반환 */
+function getContainingProductCount(row: ComparisonItem): number {
+  return Object.values(row.products).filter((v) => v.amount != null).length
+}
+
 interface ProductSummary {
   productId: string
   name: string
   ingredientCount: number
+  uniqueCount: number
   rdiMetCount: number
   overUlCount: number
 }
 
-function CompareSummaryCards({ data }: { data: ProductCompareResponse }) {
+function CompareSummaryCards({
+  data,
+  colorMap,
+}: {
+  data: ProductCompareResponse
+  colorMap: Map<string, (typeof PRODUCT_COLORS)[number]>
+}) {
   const summaries: ProductSummary[] = data.products.map((p) => {
     const myRows = data.comparison_table.filter(
       (r) => r.products[p.id]?.amount != null
+    )
+    const uniqueRows = myRows.filter(
+      (r) => getContainingProductCount(r) === 1
     )
     const rdiMet = myRows.filter(
       (r) => r.products[p.id]?.rdi_pct != null && (r.products[p.id]?.rdi_pct ?? 0) >= 50
@@ -63,6 +85,7 @@ function CompareSummaryCards({ data }: { data: ProductCompareResponse }) {
       productId: p.id,
       name: p.name,
       ingredientCount: myRows.length,
+      uniqueCount: uniqueRows.length,
       rdiMetCount: rdiMet.length,
       overUlCount: overUl.length,
     }
@@ -72,51 +95,71 @@ function CompareSummaryCards({ data }: { data: ProductCompareResponse }) {
   const maxRdiMet = Math.max(...summaries.map((s) => s.rdiMetCount))
 
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {summaries.map((s) => (
-        <div
-          key={s.productId}
-          className="rounded-lg border border-border bg-muted/20 p-3 text-sm"
-        >
-          <p className="mb-2 truncate font-medium">{s.name}</p>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>포함 성분</span>
-              <span
-                className={cn(
-                  'font-medium',
-                  s.ingredientCount === maxIngredients && 'text-safe'
-                )}
-              >
-                {s.ingredientCount}개
-                {s.ingredientCount === maxIngredients && summaries.length > 1 && (
-                  <span className="ml-1 text-[10px]">★</span>
-                )}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>RDI 50% 이상</span>
-              <span
-                className={cn(
-                  'font-medium',
-                  s.rdiMetCount === maxRdiMet && 'text-safe'
-                )}
-              >
-                {s.rdiMetCount}개
-                {s.rdiMetCount === maxRdiMet && summaries.length > 1 && (
-                  <span className="ml-1 text-[10px]">★</span>
-                )}
-              </span>
-            </div>
-            {s.overUlCount > 0 && (
-              <div className="flex items-center justify-between">
-                <span>UL 초과</span>
-                <span className="font-medium text-warning">{s.overUlCount}개</span>
-              </div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {summaries.map((s) => {
+        const color = colorMap.get(s.productId)
+        return (
+          <div
+            key={s.productId}
+            className={cn(
+              'rounded-lg border p-3 text-sm',
+              color?.border || 'border-border',
+              color?.bg || 'bg-muted/20'
             )}
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                className={cn('h-2.5 w-2.5 shrink-0 rounded-full', color?.dot)}
+              />
+              <p className="truncate font-medium">{s.name}</p>
+            </div>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span>포함 성분</span>
+                <span
+                  className={cn(
+                    'font-medium',
+                    s.ingredientCount === maxIngredients && 'text-safe'
+                  )}
+                >
+                  {s.ingredientCount}개
+                  {s.ingredientCount === maxIngredients && summaries.length > 1 && (
+                    <span className="ml-1 text-[10px]">★</span>
+                  )}
+                </span>
+              </div>
+              {s.uniqueCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>고유 성분</span>
+                  <span className={cn('font-medium', color?.text)}>
+                    {s.uniqueCount}개
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span>RDI 50% 이상</span>
+                <span
+                  className={cn(
+                    'font-medium',
+                    s.rdiMetCount === maxRdiMet && 'text-safe'
+                  )}
+                >
+                  {s.rdiMetCount}개
+                  {s.rdiMetCount === maxRdiMet && summaries.length > 1 && (
+                    <span className="ml-1 text-[10px]">★</span>
+                  )}
+                </span>
+              </div>
+              {s.overUlCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>UL 초과</span>
+                  <span className="font-medium text-warning">{s.overUlCount}개</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -168,6 +211,12 @@ export function CompareTable({ productIds }: CompareTableProps) {
     )
   }
 
+  // 제품별 색상 매핑
+  const colorMap = new Map<string, (typeof PRODUCT_COLORS)[number]>()
+  data.products.forEach((p, i) => {
+    colorMap.set(p.id, PRODUCT_COLORS[i % PRODUCT_COLORS.length])
+  })
+
   // Group by category
   const grouped = data.comparison_table.reduce<Record<string, ComparisonItem[]>>(
     (acc, row) => {
@@ -179,6 +228,12 @@ export function CompareTable({ productIds }: CompareTableProps) {
     {}
   )
   const categories = Object.keys(grouped).sort()
+
+  // 공통/고유 성분 통계
+  const commonCount = data.comparison_table.filter(
+    (r) => getContainingProductCount(r) === data.products.length
+  ).length
+  const totalCount = data.comparison_table.length
 
   const toggleCategory = (category: string) => {
     setCollapsedCategories((prev) => {
@@ -193,12 +248,25 @@ export function CompareTable({ productIds }: CompareTableProps) {
   }
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* 요약 카드 (테이블 위) */}
+      <CompareSummaryCards data={data} colorMap={colorMap} />
+
+      {/* 공통/전체 성분 통계 */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span>전체 성분 <strong className="text-foreground">{totalCount}</strong>개</span>
+        <span className="text-border">|</span>
+        <span>공통 성분 <strong className="text-foreground">{commonCount}</strong>개</span>
+        <span className="text-border">|</span>
+        <span>차이 성분 <strong className="text-foreground">{totalCount - commonCount}</strong>개</span>
+      </div>
+
+      {/* 비교 테이블 */}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50">
-              <th className="sticky left-0 bg-muted/50 px-4 py-3 text-left font-medium">
+              <th className="sticky left-0 z-10 bg-muted/50 px-4 py-3 text-left font-medium">
                 성분
               </th>
               <th className="px-3 py-3 text-center font-medium text-muted-foreground">
@@ -207,22 +275,32 @@ export function CompareTable({ productIds }: CompareTableProps) {
               <th className="px-3 py-3 text-center font-medium text-muted-foreground">
                 UL
               </th>
-              {data.products.map((p) => (
-                <th
-                  key={p.id}
-                  className="min-w-[130px] px-3 py-3 text-center font-medium"
-                >
-                  <Link
-                    href={`/products/${p.id}`}
-                    className="truncate hover:text-primary hover:underline"
+              {data.products.map((p) => {
+                const color = colorMap.get(p.id)!
+                return (
+                  <th
+                    key={p.id}
+                    className={cn(
+                      'min-w-[130px] border-l px-3 py-3 text-center font-medium',
+                      color.bg,
+                      color.border
+                    )}
                   >
-                    {p.name}
-                  </Link>
-                  <div className="text-xs font-normal text-muted-foreground">
-                    {p.company}
-                  </div>
-                </th>
-              ))}
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className={cn('h-2 w-2 shrink-0 rounded-full', color.dot)} />
+                      <Link
+                        href={`/products/${p.id}`}
+                        className="truncate hover:text-primary hover:underline"
+                      >
+                        {p.name}
+                      </Link>
+                    </div>
+                    <div className="text-xs font-normal text-muted-foreground">
+                      {p.company}
+                    </div>
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
@@ -257,6 +335,8 @@ export function CompareTable({ productIds }: CompareTableProps) {
                   {!isCollapsed &&
                     rows.map((row, i) => {
                       const maxPid = getMaxProductId(row)
+                      const containCount = getContainingProductCount(row)
+                      const isUnique = containCount === 1
                       return (
                         <tr
                           key={row.ingredient}
@@ -265,8 +345,15 @@ export function CompareTable({ productIds }: CompareTableProps) {
                             i % 2 === 1 && 'bg-muted/20'
                           )}
                         >
-                          <td className="sticky left-0 bg-background px-4 py-3 font-medium">
-                            {row.ingredient}
+                          <td className="sticky left-0 z-10 bg-background px-4 py-3 font-medium">
+                            <div className="flex items-center gap-1.5">
+                              <span>{row.ingredient}</span>
+                              {isUnique && (
+                                <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                                  고유
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-center text-muted-foreground">
                             {row.rdi != null ? `${row.rdi}${row.unit || ''}` : '-'}
@@ -276,16 +363,19 @@ export function CompareTable({ productIds }: CompareTableProps) {
                           </td>
                           {data.products.map((p) => {
                             const value = row.products[p.id]
-                            const isMax = maxPid === p.id && value?.amount != null
+                            const hasAmount = value?.amount != null
+                            const isMax = maxPid === p.id && hasAmount
+                            const color = colorMap.get(p.id)!
                             return (
                               <td
                                 key={p.id}
                                 className={cn(
-                                  'px-3 py-3 text-center',
-                                  isMax && 'bg-safe/10 ring-1 ring-inset ring-safe/20'
+                                  'border-l px-3 py-3 text-center',
+                                  color.border,
+                                  isMax && 'bg-safe/10 ring-1 ring-inset ring-safe/20',
                                 )}
                               >
-                                {value?.amount != null ? (
+                                {hasAmount ? (
                                   <div>
                                     <div className={cn('font-medium', isMax && 'text-safe')}>
                                       {value.amount}
@@ -310,7 +400,7 @@ export function CompareTable({ productIds }: CompareTableProps) {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-muted-foreground">-</span>
+                                  <span className="text-xs text-muted-foreground/50">미포함</span>
                                 )}
                               </td>
                             )
@@ -324,8 +414,6 @@ export function CompareTable({ productIds }: CompareTableProps) {
           </tbody>
         </table>
       </div>
-
-      <CompareSummaryCards data={data} />
     </div>
   )
 }
