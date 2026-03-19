@@ -58,12 +58,12 @@ function RdiBar({ rdiPct }: { rdiPct: number }) {
 }
 
 function getContainingProductCount(row: ComparisonItem): number {
-  return Object.values(row.products).filter((v) => v.amount != null).length
+  return Object.values(row.products).filter((v) => v.included).length
 }
 
 /** 특정 성분이 어느 제품에만 있는지 (고유 성분인 경우 product id 반환) */
 function getUniqueProductId(row: ComparisonItem): string | null {
-  const entries = Object.entries(row.products).filter(([, v]) => v.amount != null)
+  const entries = Object.entries(row.products).filter(([, v]) => v.included)
   return entries.length === 1 ? entries[0][0] : null
 }
 
@@ -85,7 +85,7 @@ function CompareSummaryCards({
 }) {
   const summaries: ProductSummary[] = data.products.map((p) => {
     const myRows = data.comparison_table.filter(
-      (r) => r.products[p.id]?.amount != null
+      (r) => r.products[p.id]?.included
     )
     const uniqueRows = myRows.filter(
       (r) => getContainingProductCount(r) === 1
@@ -219,6 +219,7 @@ function MobileCardView({
             <div className="space-y-1.5">
               {products.map((p) => {
                 const value = row.products[p.id]
+                const isIncluded = value?.included
                 const hasAmount = value?.amount != null
                 const isMax = maxPid === p.id && hasAmount
                 const color = colorMap.get(p.id)!
@@ -227,7 +228,7 @@ function MobileCardView({
                     key={p.id}
                     className={cn(
                       'flex items-center justify-between rounded-md px-2.5 py-1.5',
-                      hasAmount ? color.bg : 'bg-muted/30'
+                      isIncluded ? color.bg : 'bg-muted/30'
                     )}
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -254,6 +255,8 @@ function MobileCardView({
                           </span>
                         )}
                       </div>
+                    ) : isIncluded ? (
+                      <span className="text-xs text-muted-foreground">포함</span>
                     ) : (
                       <span className="text-xs text-muted-foreground/50">미포함</span>
                     )}
@@ -395,6 +398,7 @@ function DesktopTableView({
                         </td>
                         {products.map((p) => {
                           const value = row.products[p.id]
+                          const isIncluded = value?.included
                           const hasAmount = value?.amount != null
                           const isMax = maxPid === p.id && hasAmount
                           const color = colorMap.get(p.id)!
@@ -431,6 +435,8 @@ function DesktopTableView({
                                     </>
                                   )}
                                 </div>
+                              ) : isIncluded ? (
+                                <span className="text-xs text-muted-foreground">포함</span>
                               ) : (
                                 <span className="text-xs text-muted-foreground/50">미포함</span>
                               )}

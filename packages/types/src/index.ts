@@ -124,7 +124,9 @@ export interface ComparisonItem {
   rdi: number | null
   ul: number | null
   unit: string | null
-  products: Record<string, { amount: number | null; rdi_pct: number | null }>
+  /** linked=true: ingredients 테이블에 등록된 성분, false: raw_materials에만 존재 */
+  linked: boolean
+  products: Record<string, { amount: number | null; rdi_pct: number | null; included: boolean }>
 }
 
 /** 대시보드 영양소 상태 */

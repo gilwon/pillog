@@ -133,7 +133,8 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
       rdi: number | null
       ul: number | null
       unit: string | null
-      products: Record<string, { amount: number | null; rdi_pct: number | null }>
+      linked: boolean
+      products: Record<string, { amount: number | null; rdi_pct: number | null; included: boolean }>
     }
   >()
 
@@ -149,6 +150,7 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
         rdi: (ing.daily_rdi as number | null) ?? null,
         ul: (ing.daily_ul as number | null) ?? null,
         unit: (ing.rdi_unit as string | null) ?? null,
+        linked: true,
         products: {},
       })
     }
@@ -157,6 +159,7 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
     entry.products[r.product_id as string] = {
       amount: (r.amount as number | null) ?? null,
       rdi_pct: (r.percentage_of_rdi as number | null) ?? null,
+      included: true,
     }
   }
 
