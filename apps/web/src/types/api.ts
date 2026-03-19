@@ -110,9 +110,12 @@ export type ErrorCode =
 // Admin API Types
 // ============================================
 
+/** Admin product list item (lightweight, no large text fields) */
+export type AdminProductListItem = Pick<Product, 'id' | 'report_no' | 'name' | 'company' | 'is_active' | 'removed_from_api' | 'reported_at' | 'synced_at' | 'created_at'>
+
 /** Admin products list response */
 export interface AdminProductsResponse {
-  data: Product[]
+  data: AdminProductListItem[]
   pagination: Pagination
 }
 
