@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     let queryBuilder = supabase
       .from('products')
-      .select('*', { count: 'exact' })
+      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: 'exact' })
 
     // 상태 필터
     if (status === 'active') {
