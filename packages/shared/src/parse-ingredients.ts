@@ -62,19 +62,52 @@ export function parseRawMaterials(raw: string): string[] {
 /** products.standard 문자열에서 성분 함량 추출 */
 export function parseAmount(standard: string, canonicalName: string): [number | null, string | null] {
   if (!standard || !canonicalName) return [null, null]
+
+  // µ (U+00B5) → μ (U+03BC) 통일
+  const normalized = standard.replace(/µ/g, 'μ')
+
   const AMOUNT_RE =
-    /(\d[\d,]*(?:\.\d+)?)\s*(mg|μg|ug|mcg|IU|g|CFU|억\s*CFU|만\s*CFU|천\s*CFU)/gi
+    /(\d[\d,]*(?:\.\d+)?)\s*(mg|μg|ug|mcg|IU|g|CFU|억\s*CFU|만\s*CFU|천\s*CFU)(?:\s*[A-Z]*)?/gi
   const UNIT_MAP: Record<string, string> = {
     ug: 'μg', mcg: 'μg', cfu: 'CFU',
     '억 cfu': 'CFU', '억cfu': 'CFU',
     '만 cfu': 'CFU', '만cfu': 'CFU',
     '천 cfu': 'CFU', '천cfu': 'CFU',
   }
-  const idx = standard.toLowerCase().indexOf(canonicalName.toLowerCase())
+
+  // 성분명으로 직접 검색
+  const lowerStd = normalized.toLowerCase()
+  const lowerName = canonicalName.toLowerCase()
+  let idx = lowerStd.indexOf(lowerName)
+
+  // 직접 매칭 실패 시 띄어쓰기 제거 버전으로 재시도
+  if (idx === -1) {
+    const noSpaceStd = lowerStd.replace(/\s+/g, '')
+    const noSpaceName = lowerName.replace(/\s+/g, '')
+    const noSpaceIdx = noSpaceStd.indexOf(noSpaceName)
+    if (noSpaceIdx !== -1) {
+      // 원본 standard에서 대략적 위치 추정
+      idx = Math.min(noSpaceIdx, normalized.length - 1)
+    }
+  }
+
   if (idx === -1) return [null, null]
-  const window = standard.slice(idx, idx + canonicalName.length + 50)
+
+  // 성분명 뒤 100자 범위에서 표시량 패턴 검색
+  const searchWindow = normalized.slice(idx, idx + canonicalName.length + 100)
+
+  // 1차: "표시량(숫자 단위/..." 패턴 (식약처 standard 표준 형식)
+  const displayAmountRe = /표시량\s*\(\s*(\d[\d,]*(?:\.\d+)?)\s*(mg|μg|ug|mcg|IU|g)/i
+  const displayMatch = displayAmountRe.exec(searchWindow)
+  if (displayMatch) {
+    const amount = parseFloat(displayMatch[1].replace(/,/g, ''))
+    const unit = UNIT_MAP[displayMatch[2].toLowerCase()] ?? displayMatch[2]
+    return [amount, unit]
+  }
+
+  // 2차: 일반 숫자+단위 패턴
   AMOUNT_RE.lastIndex = 0
-  const m = AMOUNT_RE.exec(window)
+  const m = AMOUNT_RE.exec(searchWindow)
   if (m) {
     const amount = parseFloat(m[1].replace(/,/g, ''))
     const unit = UNIT_MAP[m[2].toLowerCase()] ?? m[2]

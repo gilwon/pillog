@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { calculateNutrientStatus } from '@/features/dashboard/utils/calculate-nutrient-status'
 import { evaluateInteractions } from '@/features/dashboard/utils/evaluate-interactions'
-import { parseRawMaterials } from '@pillog/shared/parse-ingredients'
+import { parseRawMaterials, parseAmount } from '@pillog/shared/parse-ingredients'
 import type { DashboardResponse, DashboardNutrient, DashboardWarning } from '@/types/api'
 
 export async function GET() {
@@ -131,6 +131,7 @@ export async function GET() {
 
       // 2단계: raw_materials에서 직접 파싱하여 nutrient_rdi 매칭 (product_ingredients에 없는 성분)
       const rawMaterials = product.raw_materials as string | null
+      const standard = product.standard as string | null
       if (rawMaterials) {
         const rawNames = parseRawMaterials(rawMaterials)
         for (const rawName of rawNames) {
@@ -140,10 +141,9 @@ export async function GET() {
 
           // nutrient_rdi에서 매칭 시도
           const rdiRef = rdiMap.get(rawName) || rdiMap.get(rawName.replace(/\s+/g, ''))
-          if (!rdiRef || rdiRef.daily_rdi == null) continue
+          if (!rdiRef) continue
 
           processedNames.add(lower)
-          const displayName = rdiRef === rdiMap.get(rawName) ? rawName : rdiRef.category // nutrient_rdi의 name 사용
 
           // nutrient_rdi 맵에서 원래 이름 찾기
           let rdiName = rawName
@@ -151,13 +151,27 @@ export async function GET() {
             if (val === rdiRef) { rdiName = key; break }
           }
 
+          // standard 필드에서 함량 추출 시도
+          let amount = 0
+          let amountUnit = rdiRef.rdi_unit || 'mg'
+          if (standard) {
+            const [parsedAmount, parsedUnit] = parseAmount(standard, rdiName)
+            if (parsedAmount != null) {
+              amount = parsedAmount * supp.daily_dose
+              amountUnit = parsedUnit || amountUnit
+            }
+          }
+
+          // amount가 0이고 RDI 정보도 없으면 스킵
+          if (amount === 0 && rdiRef.daily_rdi == null) continue
+
           if (nutrientTotals.has(rdiName)) {
-            // 이미 다른 제품에서 추가됨 — amount는 0 (파싱 불가)
+            nutrientTotals.get(rdiName)!.total_amount += amount
           } else {
             nutrientTotals.set(rdiName, {
               category: rdiRef.category,
-              total_amount: 0,
-              unit: rdiRef.rdi_unit || 'mg',
+              total_amount: amount,
+              unit: amountUnit,
               rdi: rdiRef.daily_rdi,
               ul: rdiRef.daily_ul,
               primary_effect: rdiRef.description,
