@@ -115,15 +115,25 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
 
   if (error) throw error
 
-  const { data: piRows } = await supabase
-    .from('product_ingredients')
-    .select(
+  // 병렬 조회: product_ingredients + nutrient_rdi
+  const [piResult, rdiResult] = await Promise.all([
+    supabase
+      .from('product_ingredients')
+      .select(
+        `
+        product_id, amount, amount_unit, percentage_of_rdi,
+        ingredient:ingredients(id, canonical_name, category, daily_rdi, daily_ul, rdi_unit)
       `
-      product_id, amount, amount_unit, percentage_of_rdi,
-      ingredient:ingredients(id, canonical_name, category, daily_rdi, daily_ul, rdi_unit)
-    `
-    )
-    .in('product_id', ids)
+      )
+      .in('product_id', ids),
+    supabase
+      .from('nutrient_rdi')
+      .select('name, category, daily_rdi, daily_ul, rdi_unit')
+      .limit(500),
+  ])
+
+  const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null }>()
+  for (const r of rdiResult.data || []) rdiMap.set(r.name, r)
 
   const ingredientMap = new Map<
     string,
@@ -138,18 +148,19 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
     }
   >()
 
-  for (const row of piRows || []) {
+  for (const row of piResult.data || []) {
     const r = row as Record<string, unknown>
     const ing = r.ingredient as Record<string, unknown>
     const name = ing.canonical_name as string
+    const rdiRef = rdiMap.get(name)
 
     if (!ingredientMap.has(name)) {
       ingredientMap.set(name, {
         ingredient: name,
-        category: ing.category as string,
-        rdi: (ing.daily_rdi as number | null) ?? null,
-        ul: (ing.daily_ul as number | null) ?? null,
-        unit: (ing.rdi_unit as string | null) ?? null,
+        category: (ing.category as string) || rdiRef?.category || '기타',
+        rdi: (ing.daily_rdi as number | null) ?? rdiRef?.daily_rdi ?? null,
+        ul: (ing.daily_ul as number | null) ?? rdiRef?.daily_ul ?? null,
+        unit: (ing.rdi_unit as string | null) ?? rdiRef?.rdi_unit ?? null,
         linked: true,
         products: {},
       })

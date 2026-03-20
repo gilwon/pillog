@@ -67,6 +67,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // nutrient_rdi fallback 로드
+    const { data: rdiRows } = await supabase
+      .from('nutrient_rdi')
+      .select('name, category, daily_rdi, daily_ul, rdi_unit')
+      .limit(500)
+    const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null }>()
+    for (const r of rdiRows || []) rdiMap.set(r.name, r)
+
     // Fetch linked ingredients from product_ingredients
     const { data: allIngredients } = await supabase
       .from('product_ingredients')
@@ -94,13 +102,15 @@ export async function GET(request: NextRequest) {
       if (!ing) continue
 
       const name = ing.canonical_name as string
+      const rdiRef = rdiMap.get(name)
+
       if (!ingredientMap.has(name)) {
         ingredientMap.set(name, {
           ingredient: name,
-          category: (ing.category as string) || '기타',
-          rdi: (ing.daily_rdi as number) ?? null,
-          ul: (ing.daily_ul as number) ?? null,
-          unit: (ing.rdi_unit as string) ?? null,
+          category: (ing.category as string) || rdiRef?.category || '기타',
+          rdi: (ing.daily_rdi as number) ?? rdiRef?.daily_rdi ?? null,
+          ul: (ing.daily_ul as number) ?? rdiRef?.daily_ul ?? null,
+          unit: (ing.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null,
           linked: true,
           products: {},
         })
@@ -110,7 +120,7 @@ export async function GET(request: NextRequest) {
       item.products[pi.product_id as string] = {
         amount: (pi.amount as number) ?? null,
         rdi_pct: (pi.percentage_of_rdi as number) ?? null,
-        included: true, // product_ingredients에 있으면 포함된 것
+        included: true,
       }
     }
 

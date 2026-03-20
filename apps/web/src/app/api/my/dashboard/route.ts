@@ -89,10 +89,9 @@ export async function GET() {
       const productIngredients = (product.product_ingredients as Array<Record<string, unknown>>) || []
       for (const pi of productIngredients) {
         const ing = pi.ingredient as unknown as Record<string, unknown> | null
-        if (!ing || !pi.amount) continue
+        if (!ing) continue
 
         const name = ing.canonical_name as string
-        const amount = Number(pi.amount) * supp.daily_dose
 
         // ingredients 테이블의 RDI가 없으면 nutrient_rdi에서 조회
         const rdiRef = rdiMap.get(name)
@@ -101,6 +100,12 @@ export async function GET() {
         const rdiUnit = (ing.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null
         const category = (ing.category as string) || rdiRef?.category || '기타'
         const effect = (ing.primary_effect as string) ?? rdiRef?.description ?? null
+
+        // amount가 없으면 RDI 계산 불가하지만, RDI 정보는 있으므로 0으로 기록
+        const amount = pi.amount != null ? Number(pi.amount) * supp.daily_dose : 0
+
+        // amount가 0이고 RDI 정보도 없으면 표시할 게 없으므로 스킵
+        if (amount === 0 && rdi == null) continue
 
         if (nutrientTotals.has(name)) {
           const existing = nutrientTotals.get(name)!

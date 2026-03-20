@@ -32,47 +32,58 @@ export async function GET(
       )
     }
 
-    // Fetch ingredients
-    const { data: ingredients } = await supabase
-      .from('product_ingredients')
-      .select(
-        `
-        id,
-        amount,
-        amount_unit,
-        percentage_of_rdi,
-        is_functional,
-        ingredient:ingredients(
+    // nutrient_rdi fallback + ingredients 병렬 조회
+    const [ingredientsResult, rdiResult] = await Promise.all([
+      supabase
+        .from('product_ingredients')
+        .select(
+          `
           id,
-          canonical_name,
-          category,
-          description,
-          primary_effect,
-          daily_rdi,
-          daily_ul,
-          rdi_unit
+          amount,
+          amount_unit,
+          percentage_of_rdi,
+          is_functional,
+          ingredient:ingredients(
+            id,
+            canonical_name,
+            category,
+            description,
+            primary_effect,
+            daily_rdi,
+            daily_ul,
+            rdi_unit
+          )
+        `
         )
-      `
-      )
-      .eq('product_id', id)
-      .order('is_functional', { ascending: false })
+        .eq('product_id', id)
+        .order('is_functional', { ascending: false }),
+      supabase
+        .from('nutrient_rdi')
+        .select('name, category, daily_rdi, daily_ul, rdi_unit, description')
+        .limit(500),
+    ])
 
-    const formattedIngredients = (ingredients || []).map(
+    const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null; description: string | null }>()
+    for (const r of rdiResult.data || []) rdiMap.set(r.name, r)
+
+    const formattedIngredients = (ingredientsResult.data || []).map(
       (pi: Record<string, unknown>) => {
         const ing = pi.ingredient as unknown as Record<string, unknown> | null
+        const name = (ing?.canonical_name as string) ?? ''
+        const rdiRef = rdiMap.get(name)
         return {
           id: ing?.id ?? '',
-          canonical_name: ing?.canonical_name ?? '',
-          description: ing?.description ?? null,
-          primary_effect: ing?.primary_effect ?? null,
+          canonical_name: name,
+          description: ing?.description ?? rdiRef?.description ?? null,
+          primary_effect: ing?.primary_effect ?? rdiRef?.description ?? null,
           amount: pi.amount,
           amount_unit: pi.amount_unit,
           percentage_of_rdi: pi.percentage_of_rdi,
-          daily_rdi: ing?.daily_rdi ?? null,
-          daily_ul: ing?.daily_ul ?? null,
-          rdi_unit: ing?.rdi_unit ?? null,
+          daily_rdi: (ing?.daily_rdi as number) ?? rdiRef?.daily_rdi ?? null,
+          daily_ul: (ing?.daily_ul as number) ?? rdiRef?.daily_ul ?? null,
+          rdi_unit: (ing?.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null,
           is_functional: pi.is_functional,
-          category: ing?.category ?? '기타',
+          category: (ing?.category as string) ?? rdiRef?.category ?? '기타',
         }
       }
     )
