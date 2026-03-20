@@ -59,32 +59,24 @@ export async function GET(request: NextRequest) {
 
     if (suppError) throw suppError
 
-    if (!supplements || supplements.length === 0) {
-      return NextResponse.json({
-        date,
-        supplements: [],
-        taken_count: 0,
-        total_count: 0,
-      })
-    }
-
-    // 2. 해당 날짜의 복용 기록
-    const productIds = supplements.map((s) => s.product_id)
-    const { data: logs, error: logError } = await supabase
+    // 2. 해당 날짜의 전체 복용 기록 (삭제된 영양제 포함)
+    const { data: allLogs, error: logError } = await supabase
       .from('intake_logs')
       .select('product_id, is_taken')
       .eq('user_id', user.id)
       .eq('taken_date', date)
-      .in('product_id', productIds)
 
     if (logError) throw logError
 
     const logMap = new Map(
-      (logs || []).map((l) => [l.product_id, l.is_taken])
+      (allLogs || []).map((l) => [l.product_id, l.is_taken])
     )
 
-    // 3. 결과 조합
-    const items = supplements.map((s) => {
+    // 현재 등록된 제품 ID set
+    const registeredIds = new Set((supplements || []).map((s) => s.product_id))
+
+    // 3. 현재 등록된 영양제 기반 항목
+    const items = (supplements || []).map((s) => {
       const product = s.product as unknown as {
         name: string
         product_ingredients: Array<{
@@ -94,7 +86,6 @@ export async function GET(request: NextRequest) {
         }>
       } | null
 
-      // 주요 성분 최대 4개 (양 있는 것 우선)
       const rawIngredients = (product?.product_ingredients ?? [])
         .filter((pi) => pi.ingredient)
         .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
@@ -111,8 +102,37 @@ export async function GET(request: NextRequest) {
         product_name: product?.name || '',
         is_taken: logMap.get(s.product_id) ?? false,
         ingredients: rawIngredients,
+        removed: false,
       }
     })
+
+    // 4. 삭제된 영양제의 과거 기록 추가 (해당 날짜에 기록이 있지만 현재 등록 안 된 제품)
+    const removedProductIds = (allLogs || [])
+      .filter((l) => !registeredIds.has(l.product_id))
+      .map((l) => l.product_id)
+
+    if (removedProductIds.length > 0) {
+      const uniqueRemovedIds = [...new Set(removedProductIds)]
+      const { data: removedProducts } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', uniqueRemovedIds)
+
+      const removedProductMap = new Map(
+        (removedProducts || []).map((p) => [p.id, p.name])
+      )
+
+      for (const pid of uniqueRemovedIds) {
+        items.push({
+          supplement_id: '',
+          product_id: pid,
+          product_name: removedProductMap.get(pid) || '삭제된 영양제',
+          is_taken: logMap.get(pid) ?? false,
+          ingredients: [],
+          removed: true,
+        })
+      }
+    }
 
     const takenCount = items.filter((i) => i.is_taken).length
 
