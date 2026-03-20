@@ -51,6 +51,17 @@ export async function GET() {
 
     if (error) throw error
 
+    // nutrient_rdi 테이블에서 RDI/UL 기준 데이터 로드 (ingredients.daily_rdi가 null인 경우 fallback)
+    const { data: rdiRows } = await supabase
+      .from('nutrient_rdi')
+      .select('name, category, daily_rdi, daily_ul, rdi_unit, description')
+      .limit(500)
+
+    const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null; description: string | null }>()
+    for (const r of rdiRows || []) {
+      rdiMap.set(r.name, r)
+    }
+
     // Calculate total nutrients
     const nutrientTotals = new Map<
       string,
@@ -83,17 +94,25 @@ export async function GET() {
         const name = ing.canonical_name as string
         const amount = Number(pi.amount) * supp.daily_dose
 
+        // ingredients 테이블의 RDI가 없으면 nutrient_rdi에서 조회
+        const rdiRef = rdiMap.get(name)
+        const rdi = (ing.daily_rdi as number) ?? rdiRef?.daily_rdi ?? null
+        const ul = (ing.daily_ul as number) ?? rdiRef?.daily_ul ?? null
+        const rdiUnit = (ing.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null
+        const category = (ing.category as string) || rdiRef?.category || '기타'
+        const effect = (ing.primary_effect as string) ?? rdiRef?.description ?? null
+
         if (nutrientTotals.has(name)) {
           const existing = nutrientTotals.get(name)!
           existing.total_amount += amount
         } else {
           nutrientTotals.set(name, {
-            category: (ing.category as string) || '기타',
+            category,
             total_amount: amount,
-            unit: (pi.amount_unit as string) || (ing.rdi_unit as string) || 'mg',
-            rdi: (ing.daily_rdi as number) ?? null,
-            ul: (ing.daily_ul as number) ?? null,
-            primary_effect: (ing.primary_effect as string) ?? null,
+            unit: (pi.amount_unit as string) || rdiUnit || 'mg',
+            rdi,
+            ul,
+            primary_effect: effect,
           })
         }
       }
