@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS nutrient_rdi (
 
 -- RLS
 ALTER TABLE nutrient_rdi ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "nutrient_rdi_read" ON nutrient_rdi FOR SELECT USING (true);
+DO $$ BEGIN
+  CREATE POLICY "nutrient_rdi_read" ON nutrient_rdi FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================
 -- 한국영양학회 DRI 2020 + 식약처 기준 (~100개)
