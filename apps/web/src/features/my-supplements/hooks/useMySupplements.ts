@@ -65,7 +65,27 @@ export function useMySupplements() {
 
   const removeSupplement = useMutation({
     mutationFn: removeSupplementApi,
-    onSuccess: () => {
+    onMutate: async (id: string) => {
+      // 진행 중인 fetch 취소
+      await queryClient.cancelQueries({ queryKey: QUERY_KEY })
+      // 이전 데이터 백업
+      const previous = queryClient.getQueryData<UserSupplementsResponse>(QUERY_KEY)
+      // 낙관적으로 즉시 제거
+      if (previous) {
+        queryClient.setQueryData<UserSupplementsResponse>(QUERY_KEY, {
+          ...previous,
+          data: previous.data.filter((s) => s.id !== id),
+        })
+      }
+      return { previous }
+    },
+    onError: (_err, _id, context) => {
+      // 실패 시 롤백
+      if (context?.previous) {
+        queryClient.setQueryData(QUERY_KEY, context.previous)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
     },
   })
