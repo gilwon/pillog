@@ -37,7 +37,16 @@ export async function PATCH(
 
     const body = await request.json()
     const updates: Record<string, unknown> = {}
-    if (body.daily_dose !== undefined) updates.daily_dose = body.daily_dose
+    if (body.daily_dose !== undefined) {
+      const dose = Number(body.daily_dose)
+      if (!Number.isInteger(dose) || dose < 1 || dose > 10) {
+        return NextResponse.json(
+          { error: { code: 'VALIDATION_ERROR', message: 'daily_dose는 1~10 사이 정수여야 합니다.', status: 400 } },
+          { status: 400 }
+        )
+      }
+      updates.daily_dose = dose
+    }
     if (body.note !== undefined) updates.note = body.note
     if (body.started_at !== undefined) updates.started_at = body.started_at
 

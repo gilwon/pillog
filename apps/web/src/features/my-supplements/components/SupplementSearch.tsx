@@ -48,7 +48,7 @@ export function SupplementSearch({
   const addMutation = useMutation({
     mutationFn: () => addSupplement(selected!.id, dose),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplements'] })
+      queryClient.invalidateQueries({ queryKey: ['my', 'supplements'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       setSelected(null)
       setQuery('')

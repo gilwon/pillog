@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const dateParam = searchParams.get('date')
-    const date = dateParam || new Date().toISOString().split('T')[0]
+    // KST 기준 오늘 날짜 (서버 UTC와 한국 시간 불일치 방지)
+    const date = dateParam || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json(
         { error: { code: 'VALIDATION_ERROR', message: '날짜 형식은 YYYY-MM-DD여야 합니다.', status: 400 } },
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const date = taken_date || new Date().toISOString().split('T')[0]
+    const date = taken_date || new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json(
         { error: { code: 'VALIDATION_ERROR', message: '날짜 형식은 YYYY-MM-DD여야 합니다.', status: 400 } },

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 interface Notification {
   message: string
@@ -42,15 +42,25 @@ export function useProductActions(productId: string): UseProductActionsReturn {
     checkStatus()
   }, [productId])
 
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
+
   const showNotification = useCallback(
     (message: string, variant: 'success' | 'destructive') => {
+      if (timerRef.current) clearTimeout(timerRef.current)
       setNotification({ message, variant })
-      setTimeout(() => setNotification(null), 3000)
+      timerRef.current = setTimeout(() => setNotification(null), 3000)
     },
     []
   )
 
-  const clearNotification = useCallback(() => setNotification(null), [])
+  const clearNotification = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setNotification(null)
+  }, [])
 
   const addSupplement = async () => {
     try {

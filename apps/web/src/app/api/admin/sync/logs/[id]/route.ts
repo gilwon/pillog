@@ -10,8 +10,8 @@ export async function GET(
     const { supabase } = await requireAdmin()
 
     const changeType = request.nextUrl.searchParams.get('type') // new | updated | deactivated
-    const page = parseInt(request.nextUrl.searchParams.get('page') ?? '1')
-    const limit = parseInt(request.nextUrl.searchParams.get('limit') ?? '50')
+    const page = Math.max(1, parseInt(request.nextUrl.searchParams.get('page') ?? '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(request.nextUrl.searchParams.get('limit') ?? '50')))
     const offset = (page - 1) * limit
 
     const { data: log, error: logError } = await supabase

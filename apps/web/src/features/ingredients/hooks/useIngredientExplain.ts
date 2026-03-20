@@ -75,7 +75,7 @@ export function useIngredientExplain(
 
       // Try to parse the completed JSON (strip markdown code fences if present)
       try {
-        const jsonText = accumulated.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+        const jsonText = accumulated.replace(/^```(?:json)?\n?/i, '').replace(/\n?```\s*$/m, '').trim()
         const parsed: ProductExplanationData = JSON.parse(jsonText)
         setExplanation(parsed)
       } catch {

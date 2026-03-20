@@ -139,7 +139,7 @@ ${functionalLines ? `\n기능성 원료 상세:\n${functionalLines}` : ''}
 
           // 7. Parse and cache the complete response (strip markdown code fences if present)
           try {
-            const jsonText = fullText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+            const jsonText = fullText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```\s*$/m, '').trim()
             const parsed: ProductExplanationData = JSON.parse(jsonText)
             // Use service role client to bypass RLS (anon client blocked by WITH CHECK false)
             const serviceClient = createServiceClient(

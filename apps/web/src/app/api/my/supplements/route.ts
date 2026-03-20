@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { product_id, daily_dose = 1, note } = body
+    const { product_id, note } = body
+    const daily_dose = Number(body.daily_dose ?? 1)
 
     if (!product_id || !isValidUUID(product_id)) {
       return NextResponse.json(
@@ -99,6 +100,13 @@ export async function POST(request: NextRequest) {
             status: 400,
           },
         },
+        { status: 400 }
+      )
+    }
+
+    if (!Number.isInteger(daily_dose) || daily_dose < 1 || daily_dose > 10) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'daily_dose는 1~10 사이 정수여야 합니다.', status: 400 } },
         { status: 400 }
       )
     }
