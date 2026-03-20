@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
           progress: 'ingredient-progress',
           done: 'ingredient-done',
           error: 'ingredient-error',
-        }, full ? null : syncStart)
+        }, syncStart)
       } catch (err) {
         controller.enqueue(
           send({
