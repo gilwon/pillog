@@ -297,35 +297,37 @@ export async function POST(req: NextRequest) {
             : `${totalUpserted.toLocaleString()}개 제품이 업데이트되었습니다.`,
       }))
 
-      // ─── 성분 연결 자동 실행 ──────────────────────────
-      controller.enqueue(send({ type: 'ingredient-sync-start' }))
+      // ─── 성분 연결: 증분 동기화에서만 실행 (전체 동기화는 제품 수가 많아 타임아웃) ──
+      if (!full) {
+        controller.enqueue(send({ type: 'ingredient-sync-start' }))
 
-      try {
-        const writer = (msg: object) => controller.enqueue(send(msg))
+        try {
+          const writer = (msg: object) => controller.enqueue(send(msg))
 
-        await runIngredientSync(supabase, writer, {
-          start: 'ingredient-start',
-          progress: 'ingredient-progress',
-          done: 'ingredient-done',
-          error: 'ingredient-error',
-        }, syncStart)
-      } catch (err) {
-        controller.enqueue(
-          send({
-            type: 'ingredient-error',
-            message: err instanceof Error ? err.message : '성분 연결 중 오류 발생',
-          })
-        )
-      }
-
-      // ─── RDI/UL 데이터 복사 (nutrient_rdi → ingredients) ──
-      try {
-        const rdiCount = await applyNutrientRdi(supabase)
-        if (rdiCount > 0) {
-          controller.enqueue(send({ type: 'rdi-applied', count: rdiCount }))
+          await runIngredientSync(supabase, writer, {
+            start: 'ingredient-start',
+            progress: 'ingredient-progress',
+            done: 'ingredient-done',
+            error: 'ingredient-error',
+          }, syncStart)
+        } catch (err) {
+          controller.enqueue(
+            send({
+              type: 'ingredient-error',
+              message: err instanceof Error ? err.message : '성분 연결 중 오류 발생',
+            })
+          )
         }
-      } catch {
-        // RDI 복사 실패는 동기화에 영향 없음
+
+        // RDI/UL 데이터 복사 (nutrient_rdi → ingredients)
+        try {
+          const rdiCount = await applyNutrientRdi(supabase)
+          if (rdiCount > 0) {
+            controller.enqueue(send({ type: 'rdi-applied', count: rdiCount }))
+          }
+        } catch {
+          // RDI 복사 실패는 동기화에 영향 없음
+        }
       }
 
       controller.close()
