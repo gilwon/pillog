@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { calculateNutrientStatus } from '@/features/dashboard/utils/calculate-nutrient-status'
 import { evaluateInteractions } from '@/features/dashboard/utils/evaluate-interactions'
+import { parseRawMaterials } from '@pillog/shared/parse-ingredients'
 import type { DashboardResponse, DashboardNutrient, DashboardWarning } from '@/types/api'
 
 export async function GET() {
@@ -24,42 +25,49 @@ export async function GET() {
       )
     }
 
-    // Fetch user supplements with product and ingredient details
-    const { data: supplements, error } = await supabase
-      .from('user_supplements')
-      .select(
-        `
-        daily_dose,
-        product:products(
-          name,
-          product_ingredients(
-            amount,
-            amount_unit,
-            ingredient:ingredients(
-              canonical_name,
-              category,
-              primary_effect,
-              daily_rdi,
-              daily_ul,
-              rdi_unit
+    // 유저 영양제 + nutrient_rdi 병렬 조회
+    const [supplementsResult, rdiResult] = await Promise.all([
+      supabase
+        .from('user_supplements')
+        .select(
+          `
+          daily_dose,
+          product:products(
+            name,
+            raw_materials,
+            standard,
+            product_ingredients(
+              amount,
+              amount_unit,
+              ingredient:ingredients(
+                canonical_name,
+                category,
+                primary_effect,
+                daily_rdi,
+                daily_ul,
+                rdi_unit
+              )
             )
           )
+        `
         )
-      `
-      )
-      .eq('user_id', user.id)
+        .eq('user_id', user.id),
+      supabase
+        .from('nutrient_rdi')
+        .select('name, category, daily_rdi, daily_ul, rdi_unit, description')
+        .limit(500),
+    ])
 
-    if (error) throw error
+    if (supplementsResult.error) throw supplementsResult.error
+    const supplements = supplementsResult.data
 
-    // nutrient_rdi 테이블에서 RDI/UL 기준 데이터 로드 (ingredients.daily_rdi가 null인 경우 fallback)
-    const { data: rdiRows } = await supabase
-      .from('nutrient_rdi')
-      .select('name, category, daily_rdi, daily_ul, rdi_unit, description')
-      .limit(500)
-
+    // nutrient_rdi 맵 구축
     const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null; description: string | null }>()
-    for (const r of rdiRows || []) {
+    for (const r of rdiResult.data || []) {
       rdiMap.set(r.name, r)
+      // 띄어쓰기 없는 버전도 추가 (예: "비타민 D" → "비타민D")
+      const noSpace = r.name.replace(/\s+/g, '')
+      if (noSpace !== r.name) rdiMap.set(noSpace, r)
     }
 
     // Calculate total nutrients
@@ -86,14 +94,17 @@ export async function GET() {
         daily_dose: supp.daily_dose,
       })
 
+      // 1단계: product_ingredients에서 연결된 성분 처리
       const productIngredients = (product.product_ingredients as Array<Record<string, unknown>>) || []
+      const processedNames = new Set<string>()
+
       for (const pi of productIngredients) {
         const ing = pi.ingredient as unknown as Record<string, unknown> | null
         if (!ing) continue
 
         const name = ing.canonical_name as string
+        processedNames.add(name.toLowerCase())
 
-        // ingredients 테이블의 RDI가 없으면 nutrient_rdi에서 조회
         const rdiRef = rdiMap.get(name)
         const rdi = (ing.daily_rdi as number) ?? rdiRef?.daily_rdi ?? null
         const ul = (ing.daily_ul as number) ?? rdiRef?.daily_ul ?? null
@@ -101,15 +112,11 @@ export async function GET() {
         const category = (ing.category as string) || rdiRef?.category || '기타'
         const effect = (ing.primary_effect as string) ?? rdiRef?.description ?? null
 
-        // amount가 없으면 RDI 계산 불가하지만, RDI 정보는 있으므로 0으로 기록
         const amount = pi.amount != null ? Number(pi.amount) * supp.daily_dose : 0
-
-        // amount가 0이고 RDI 정보도 없으면 표시할 게 없으므로 스킵
         if (amount === 0 && rdi == null) continue
 
         if (nutrientTotals.has(name)) {
-          const existing = nutrientTotals.get(name)!
-          existing.total_amount += amount
+          nutrientTotals.get(name)!.total_amount += amount
         } else {
           nutrientTotals.set(name, {
             category,
@@ -119,6 +126,43 @@ export async function GET() {
             ul,
             primary_effect: effect,
           })
+        }
+      }
+
+      // 2단계: raw_materials에서 직접 파싱하여 nutrient_rdi 매칭 (product_ingredients에 없는 성분)
+      const rawMaterials = product.raw_materials as string | null
+      if (rawMaterials) {
+        const rawNames = parseRawMaterials(rawMaterials)
+        for (const rawName of rawNames) {
+          const lower = rawName.toLowerCase().trim()
+          const noSpace = lower.replace(/\s+/g, '')
+          if (processedNames.has(lower) || processedNames.has(noSpace)) continue
+
+          // nutrient_rdi에서 매칭 시도
+          const rdiRef = rdiMap.get(rawName) || rdiMap.get(rawName.replace(/\s+/g, ''))
+          if (!rdiRef || rdiRef.daily_rdi == null) continue
+
+          processedNames.add(lower)
+          const displayName = rdiRef === rdiMap.get(rawName) ? rawName : rdiRef.category // nutrient_rdi의 name 사용
+
+          // nutrient_rdi 맵에서 원래 이름 찾기
+          let rdiName = rawName
+          for (const [key, val] of rdiMap) {
+            if (val === rdiRef) { rdiName = key; break }
+          }
+
+          if (nutrientTotals.has(rdiName)) {
+            // 이미 다른 제품에서 추가됨 — amount는 0 (파싱 불가)
+          } else {
+            nutrientTotals.set(rdiName, {
+              category: rdiRef.category,
+              total_amount: 0,
+              unit: rdiRef.rdi_unit || 'mg',
+              rdi: rdiRef.daily_rdi,
+              ul: rdiRef.daily_ul,
+              primary_effect: rdiRef.description,
+            })
+          }
         }
       }
     }
