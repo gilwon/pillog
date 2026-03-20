@@ -58,8 +58,9 @@ export function useMySupplements() {
 
   const addSupplement = useMutation({
     mutationFn: addSupplementApi,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+    onSuccess: async () => {
+      // 캐시 무효화 + 즉시 refetch 대기
+      await queryClient.refetchQueries({ queryKey: QUERY_KEY })
     },
   })
 
