@@ -10,6 +10,15 @@ import type { HealthConcernKey, RecommendedProduct } from '@/features/recommenda
 const VALID_KEYS = new Set<string>(HEALTH_CONCERNS.map((c) => c.key))
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: 'UNAUTHORIZED', message: '로그인이 필요합니다.', status: 401 } },
+      { status: 401 }
+    )
+  }
+
   const body = await req.json().catch(() => null)
   const concerns: HealthConcernKey[] = body?.concerns
 
@@ -37,7 +46,6 @@ export async function POST(req: NextRequest) {
 
   const keywords = validConcerns.flatMap((c) => HEALTH_CONCERN_MAP[c])
 
-  const supabase = await createClient()
   // primary_functionality는 plain text 컬럼 → .or() ilike 안정적으로 지원
   const orFilter = keywords.map((k) => `primary_functionality.ilike.%${escapeLike(k)}%`).join(',')
   const { data, error } = await supabase
@@ -45,6 +53,7 @@ export async function POST(req: NextRequest) {
     .select('id, name, company, functionality_tags, shape, primary_functionality, reported_at')
     .eq('is_active', true)
     .or(orFilter)
+    .limit(500)
 
   if (error) {
     return NextResponse.json(

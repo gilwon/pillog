@@ -20,10 +20,29 @@ interface SyncResult {
   message: string
 }
 
+interface IngredientPhase {
+  active: boolean
+  batch: number
+  totalBatches: number
+  linked: number
+  total: number
+  message: string | null
+}
+
+const initialIngredientPhase: IngredientPhase = {
+  active: false,
+  batch: 0,
+  totalBatches: 0,
+  linked: 0,
+  total: 0,
+  message: null,
+}
+
 export function SyncButton() {
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState<SyncProgress | null>(null)
   const [result, setResult] = useState<SyncResult | null>(null)
+  const [ingredientPhase, setIngredientPhase] = useState<IngredientPhase>(initialIngredientPhase)
   const [error, setError] = useState<string | null>(null)
   const [showMenu, setShowMenu] = useState(false)
   const queryClient = useQueryClient()
@@ -32,6 +51,7 @@ export function SyncButton() {
     setIsLoading(true)
     setProgress(null)
     setResult(null)
+    setIngredientPhase(initialIngredientPhase)
     setError(null)
     setShowMenu(false)
 
@@ -75,9 +95,31 @@ export function SyncButton() {
               setProgress({ batch: msg.batch, totalBatches: msg.totalBatches, upserted: msg.upserted, total: msg.total })
             } else if (msg.type === 'done') {
               setResult({ count: msg.count, total: msg.total, failedBatches: msg.failedBatches ?? 0, deactivated: msg.deactivated ?? 0, message: msg.message })
+              setProgress(null)
               queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
               queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
               queryClient.invalidateQueries({ queryKey: ['admin', 'sync', 'logs'] })
+            } else if (msg.type === 'ingredient-sync-start') {
+              setIngredientPhase({ active: true, batch: 0, totalBatches: 0, linked: 0, total: 0, message: null })
+            } else if (msg.type === 'ingredient-progress') {
+              setIngredientPhase((prev) => ({
+                ...prev,
+                active: true,
+                batch: msg.batch,
+                totalBatches: msg.totalBatches,
+                linked: msg.linked,
+                total: msg.total,
+              }))
+            } else if (msg.type === 'ingredient-done') {
+              setIngredientPhase({
+                active: false,
+                batch: 0,
+                totalBatches: 0,
+                linked: msg.count ?? 0,
+                total: msg.total ?? 0,
+                message: msg.message,
+              })
+              queryClient.invalidateQueries({ queryKey: ['admin', 'ingredients'] })
             } else if (msg.type === 'warning') {
               setError(msg.message)
             } else if (msg.type === 'error') {
@@ -96,7 +138,10 @@ export function SyncButton() {
     }
   }
 
-  const pct = progress ? Math.round((progress.batch / progress.totalBatches) * 100) : 0
+  const pct = progress && progress.totalBatches > 0 ? Math.round((progress.batch / progress.totalBatches) * 100) : 0
+  const ingredientPct = ingredientPhase.active && ingredientPhase.totalBatches > 0
+    ? Math.round((ingredientPhase.batch / ingredientPhase.totalBatches) * 100)
+    : 0
 
   return (
     <div className="flex flex-col items-end gap-1.5">
@@ -139,7 +184,7 @@ export function SyncButton() {
         )}
       </div>
 
-      {/* 진행 상황 */}
+      {/* 제품 동기화 진행 상황 */}
       {isLoading && progress && (
         <div className="w-64 space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -157,10 +202,36 @@ export function SyncButton() {
           </p>
         </div>
       )}
-      {isLoading && !progress && (
+      {isLoading && !progress && !ingredientPhase.active && (
         <p className="text-xs text-muted-foreground">식약처 연결 중...</p>
       )}
 
+      {/* 성분 자동 연결 진행 상황 */}
+      {isLoading && ingredientPhase.active && (
+        <div className="w-64 space-y-1">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>성분 자동 연결 중...</span>
+            {ingredientPhase.totalBatches > 0 && (
+              <span>배치 {ingredientPhase.batch}/{ingredientPhase.totalBatches} · {ingredientPct}%</span>
+            )}
+          </div>
+          {ingredientPhase.totalBatches > 0 && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${ingredientPct}%` }}
+              />
+            </div>
+          )}
+          {ingredientPhase.linked > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {ingredientPhase.linked.toLocaleString()}개 성분 연결됨
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 결과 표시 */}
       {result && !isLoading && (
         <div className="space-y-0.5 text-right">
           <p className={`text-xs ${result.failedBatches > 0 ? 'text-amber-500' : 'text-green-600 dark:text-green-400'}`}>
@@ -172,6 +243,11 @@ export function SyncButton() {
             </p>
           )}
         </div>
+      )}
+      {ingredientPhase.message && !isLoading && (
+        <p className="text-xs text-green-600 dark:text-green-400">
+          {ingredientPhase.message}
+        </p>
       )}
       {error && (
         <p className="text-xs text-destructive">{error}</p>

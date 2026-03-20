@@ -71,7 +71,8 @@ async function fetchC003(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(url, { signal: AbortSignal.timeout(30000) })
-    if (!res.ok) throw new Error(`C003 API error: ${res.status}`)
+    // NOTE: URL deliberately excluded from error message to prevent API key exposure (SEC-009)
+    if (!res.ok) throw new Error(`C003 API 오류: ${res.status}`)
 
     const text = await res.text()
 

@@ -238,16 +238,24 @@ export async function applyNutrientRdi(supabase: SupabaseClient): Promise<number
 
   if (!rdiRows || rdiRows.length === 0) return 0
 
-  let updated = 0
-  for (const rdi of rdiRows) {
-    const { data: matched } = await supabase
-      .from('ingredients')
-      .select('id')
-      .eq('canonical_name', rdi.name)
-      .limit(1)
+  // 매칭할 성분명 목록으로 한번에 조회
+  const rdiNames = rdiRows.map((r) => r.name)
+  const { data: ingredients } = await supabase
+    .from('ingredients')
+    .select('id, canonical_name')
+    .in('canonical_name', rdiNames)
 
-    if (matched && matched.length > 0) {
-      await supabase
+  if (!ingredients || ingredients.length === 0) return 0
+
+  // name → rdi 데이터 맵
+  const rdiMap = new Map(rdiRows.map((r) => [r.name, r]))
+
+  // 배치 업데이트 (같은 값끼리 묶기는 복잡하므로 Promise.all로 병렬 처리)
+  const updates = ingredients
+    .filter((ing) => rdiMap.has(ing.canonical_name))
+    .map((ing) => {
+      const rdi = rdiMap.get(ing.canonical_name)!
+      return supabase
         .from('ingredients')
         .update({
           daily_rdi: rdi.daily_rdi,
@@ -256,10 +264,9 @@ export async function applyNutrientRdi(supabase: SupabaseClient): Promise<number
           category: rdi.category,
           primary_effect: rdi.description,
         })
-        .eq('id', matched[0].id)
-      updated++
-    }
-  }
+        .eq('id', ing.id)
+    })
 
-  return updated
+  await Promise.all(updates)
+  return updates.length
 }

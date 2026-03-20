@@ -29,7 +29,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    const dateParam = searchParams.get('date')
+    const date = dateParam || new Date().toISOString().split('T')[0]
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: '날짜 형식은 YYYY-MM-DD여야 합니다.', status: 400 } },
+        { status: 400 }
+      )
+    }
 
     // 1. 사용자의 등록 영양제 목록 (주요 성분 포함)
     const { data: supplements, error: suppError } = await supabase

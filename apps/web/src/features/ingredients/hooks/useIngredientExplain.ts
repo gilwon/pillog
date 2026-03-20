@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { ProductExplanationData } from '@/types/database'
 
 interface UseIngredientExplainResult {
@@ -22,6 +22,14 @@ export function useIngredientExplain(
   const [isStreaming, setIsStreaming] = useState(false)
   const [isCached, setIsCached] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // productId 변경 시 상태 리셋 (stale data 방지)
+  useEffect(() => {
+    setExplanation(null)
+    setStreamingText('')
+    setIsCached(false)
+    setError(null)
+  }, [productId])
 
   const fetchExplanation = useCallback(async () => {
     if (isLoading || explanation) return

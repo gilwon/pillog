@@ -99,7 +99,11 @@ export async function POST(req: NextRequest) {
   try {
     await requireAdmin()
   } catch (err) {
-    return err as NextResponse
+    if (err instanceof NextResponse) return err
+    return NextResponse.json(
+      { error: { code: 'UNAUTHORIZED', message: '관리자 권한이 필요합니다.', status: 401 } },
+      { status: 401 }
+    )
   }
 
   const apiKey = process.env.FOOD_SAFETY_API_KEY

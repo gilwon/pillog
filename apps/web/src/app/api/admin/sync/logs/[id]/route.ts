@@ -56,7 +56,7 @@ export async function GET(
       },
     })
   } catch (err) {
-    if (err instanceof Response) throw err
+    if (err instanceof NextResponse) return err
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: '서버 오류가 발생했습니다.', status: 500 } },
       { status: 500 }
