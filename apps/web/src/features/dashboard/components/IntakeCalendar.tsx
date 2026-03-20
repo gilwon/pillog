@@ -40,8 +40,8 @@ async function fetchDayDetail(date: string): Promise<DayDetailResponse> {
   return res.json()
 }
 
-async function fetchDashboard(): Promise<DashboardResponse> {
-  const res = await fetch('/api/my/dashboard')
+async function fetchDashboardForDate(date: string): Promise<DashboardResponse> {
+  const res = await fetch(`/api/my/dashboard?date=${date}`)
   if (!res.ok) throw new Error('Failed to fetch dashboard')
   return res.json()
 }
@@ -214,9 +214,10 @@ function DayDetailPanel({
   detailLoading: boolean
   onClose: () => void
 }) {
-  const { data: dashboardData } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: fetchDashboard,
+  // 선택한 날짜 기준 대시보드 (해당 날짜에 복용한 영양제만)
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['dashboard', selectedDate],
+    queryFn: () => fetchDashboardForDate(selectedDate),
     staleTime: 60 * 1000,
   })
 
@@ -268,12 +269,20 @@ function DayDetailPanel({
             </p>
           </div>
 
-          {/* RDI Chart */}
-          {dashboardData && dashboardData.total_nutrients.length > 0 && (
+          {/* RDI Chart for selected date */}
+          {dashboardLoading ? (
+            <div className="mt-4 flex justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : dashboardData && dashboardData.total_nutrients.length > 0 ? (
             <div className="mt-4">
               <NutrientChart nutrients={dashboardData.total_nutrients} />
             </div>
-          )}
+          ) : dayDetail.taken_count > 0 ? (
+            <div className="mt-4 rounded-lg border border-border p-4 text-center text-xs text-muted-foreground">
+              복용한 영양제의 RDI 데이터가 없습니다.
+            </div>
+          ) : null}
         </>
       )}
     </div>
