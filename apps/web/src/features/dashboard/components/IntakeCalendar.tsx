@@ -17,7 +17,9 @@ import { ko } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useIntakeHistory } from '@/features/dashboard/hooks/useIntakeHistory'
+import { NutrientChart } from './NutrientChart'
 import { cn } from '@/lib/utils/cn'
+import type { DashboardResponse } from '@/types/api'
 
 interface DaySupplement {
   supplement_id: string
@@ -35,6 +37,12 @@ interface DayDetailResponse {
 async function fetchDayDetail(date: string): Promise<DayDetailResponse> {
   const res = await fetch(`/api/my/intake?date=${date}`)
   if (!res.ok) throw new Error('Failed to fetch day detail')
+  return res.json()
+}
+
+async function fetchDashboard(): Promise<DashboardResponse> {
+  const res = await fetch('/api/my/dashboard')
+  if (!res.ok) throw new Error('Failed to fetch dashboard')
   return res.json()
 }
 
@@ -180,52 +188,90 @@ export function IntakeCalendar() {
 
           {/* Day detail panel */}
           {selectedDate && (
-            <div className="mt-4 border-t border-border pt-4">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  {selectedDate.replace(/-/g, '.')} 복용 기록
-                </span>
-                <button
-                  onClick={() => setSelectedDate(null)}
-                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="닫기"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+            <DayDetailPanel
+              selectedDate={selectedDate}
+              dayDetail={dayDetail ?? null}
+              detailLoading={detailLoading}
+              onClose={() => setSelectedDate(null)}
+            />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
 
-              {detailLoading ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              ) : !dayDetail?.supplements?.length ? (
-                <p className="py-2 text-center text-xs text-muted-foreground">
-                  등록된 영양제가 없습니다.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {dayDetail.supplements.map((s) => (
-                    <div
-                      key={s.supplement_id}
-                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
-                    >
-                      <span className={cn(!s.is_taken && 'text-muted-foreground')}>
-                        {s.product_name}
-                      </span>
-                      {s.is_taken ? (
-                        <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                          ✅ 복용
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">⬜ 미복용</span>
-                      )}
-                    </div>
-                  ))}
-                  <p className="pt-1 text-right text-xs text-muted-foreground">
-                    {dayDetail.taken_count} / {dayDetail.total_count} 복용
-                  </p>
-                </div>
-              )}
+/* ─── Day Detail Panel with RDI Chart ─── */
+
+function DayDetailPanel({
+  selectedDate,
+  dayDetail,
+  detailLoading,
+  onClose,
+}: {
+  selectedDate: string
+  dayDetail: DayDetailResponse | null
+  detailLoading: boolean
+  onClose: () => void
+}) {
+  const { data: dashboardData } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: fetchDashboard,
+    staleTime: 60 * 1000,
+  })
+
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-sm font-medium">
+          {selectedDate.replace(/-/g, '.')} 복용 기록
+        </span>
+        <button
+          onClick={onClose}
+          className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="닫기"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {detailLoading ? (
+        <div className="flex justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : !dayDetail?.supplements?.length ? (
+        <p className="py-2 text-center text-xs text-muted-foreground">
+          등록된 영양제가 없습니다.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {dayDetail.supplements.map((s, i) => (
+              <div
+                key={s.supplement_id || `removed-${i}`}
+                className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
+              >
+                <span className={cn(!s.is_taken && 'text-muted-foreground')}>
+                  {s.product_name}
+                </span>
+                {s.is_taken ? (
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                    복용 완료
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">미복용</span>
+                )}
+              </div>
+            ))}
+            <p className="pt-1 text-right text-xs text-muted-foreground">
+              {dayDetail.taken_count} / {dayDetail.total_count} 복용
+            </p>
+          </div>
+
+          {/* RDI Chart */}
+          {dashboardData && dashboardData.total_nutrients.length > 0 && (
+            <div className="mt-4">
+              <NutrientChart nutrients={dashboardData.total_nutrients} />
             </div>
           )}
         </>
