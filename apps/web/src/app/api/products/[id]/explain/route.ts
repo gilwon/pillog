@@ -29,7 +29,7 @@ export async function GET(
     // 2. Fetch product with ingredients (active products only)
     const { data: product, error: productError } = await supabase
       .from('products')
-      .select('name, company, raw_materials')
+      .select('name, company, raw_materials, standard')
       .eq('id', id)
       .eq('is_active', true)
       .single()
@@ -72,7 +72,7 @@ export async function GET(
       )
     }
 
-    // 4. Build functional ingredient details (supplementary)
+    // 4. Build functional ingredient details (supplementary) + standard 정보
     const functionalLines = (ingredients || [])
       .map((pi) => {
         const ing = pi.ingredient as unknown as Record<string, unknown> | null
@@ -85,6 +85,9 @@ export async function GET(
       })
       .filter(Boolean)
       .join('\n')
+
+    // standard 필드에서 추가 함량 정보 추출
+    const standardInfo = product.standard ? `\n기준 및 규격:\n${product.standard}` : ''
 
     // 6. Call Llama 3.3 70B via Groq with streaming
     const groq = new OpenAI({
@@ -110,7 +113,7 @@ export async function GET(
 제품명: ${product.name} (${product.company})
 
 원재료: ${product.raw_materials || '정보 없음'}
-${functionalLines ? `\n기능성 원료 상세:\n${functionalLines}` : ''}
+${functionalLines ? `\n기능성 원료 상세:\n${functionalLines}` : ''}${standardInfo}
 
 원재료 목록을 기반으로 각 성분의 역할과 효과를 설명해주세요.
 다음 JSON 형식으로 응답해주세요 (반드시 유효한 JSON만 출력):

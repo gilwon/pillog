@@ -29,16 +29,27 @@ export async function GET(
       )
     }
 
-    // Fetch aliases
-    const { data: aliases } = await supabase
-      .from('ingredient_aliases')
-      .select('alias_name, alias_type')
-      .eq('ingredient_id', id)
+    // Fetch aliases + nutrient_rdi fallback 병렬
+    const [aliasResult, rdiResult] = await Promise.all([
+      supabase.from('ingredient_aliases').select('alias_name, alias_type').eq('ingredient_id', id),
+      ingredient.daily_rdi == null
+        ? supabase.from('nutrient_rdi').select('daily_rdi, daily_ul, rdi_unit, category, description').eq('name', ingredient.canonical_name).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
 
-    return NextResponse.json({
+    // nutrient_rdi fallback 적용
+    const rdiRef = rdiResult.data
+    const merged = {
       ...ingredient,
-      aliases: aliases || [],
-    })
+      daily_rdi: ingredient.daily_rdi ?? rdiRef?.daily_rdi ?? null,
+      daily_ul: ingredient.daily_ul ?? rdiRef?.daily_ul ?? null,
+      rdi_unit: ingredient.rdi_unit ?? rdiRef?.rdi_unit ?? null,
+      category: ingredient.category || rdiRef?.category || '기타',
+      primary_effect: ingredient.primary_effect ?? rdiRef?.description ?? null,
+      aliases: aliasResult.data || [],
+    }
+
+    return NextResponse.json(merged)
   } catch {
     return NextResponse.json(
       {
