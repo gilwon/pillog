@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useRef, Fragment } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, ChevronDown, ChevronRight, ArrowUpDown, Filter, GripVertical } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronRight, ArrowUpDown, Filter } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
 import type { ProductCompareResponse, ComparisonItem } from '@/types/api'
@@ -79,14 +79,10 @@ interface ProductSummary {
 function CompareSummaryCards({
   data,
   colorMap,
-  onReorder,
 }: {
   data: ProductCompareResponse
   colorMap: Map<string, (typeof PRODUCT_COLORS)[number]>
-  onReorder?: (fromIndex: number, toIndex: number) => void
 }) {
-  const dragItem = useRef<number | null>(null)
-  const dragOverItem = useRef<number | null>(null)
   const summaries: ProductSummary[] = data.products.map((p) => {
     const myRows = data.comparison_table.filter(
       (r) => r.products[p.id]?.included
@@ -119,36 +115,19 @@ function CompareSummaryCards({
   const maxRdiMet = Math.max(...summaries.map((s) => s.rdiMetCount))
 
   return (
-    <div
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-      onDragOver={(e) => e.preventDefault()}
-    >
-      {summaries.map((s, index) => {
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {summaries.map((s) => {
         const color = colorMap.get(s.productId)
         return (
           <div
             key={s.productId}
-            draggable={!!onReorder}
-            onDragStart={() => { dragItem.current = index }}
-            onDragEnter={() => { dragOverItem.current = index }}
-            onDragEnd={() => {
-              if (onReorder && dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
-                onReorder(dragItem.current, dragOverItem.current)
-              }
-              dragItem.current = null
-              dragOverItem.current = null
-            }}
             className={cn(
-              'group rounded-lg border p-3 text-sm transition-all',
-              onReorder && 'cursor-grab active:cursor-grabbing',
+              'rounded-lg border p-3 text-sm',
               color?.border || 'border-border',
               color?.bg || 'bg-muted/20'
             )}
           >
             <div className="mb-2 flex items-center gap-2">
-              {onReorder && (
-                <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground" />
-              )}
               <span
                 className={cn('h-2.5 w-2.5 shrink-0 rounded-full', color?.dot)}
               />
@@ -486,10 +465,9 @@ function DesktopTableView({
 
 interface CompareTableProps {
   productIds: string[]
-  onReorder?: (fromIndex: number, toIndex: number) => void
 }
 
-export function CompareTable({ productIds, onReorder }: CompareTableProps) {
+export function CompareTable({ productIds }: CompareTableProps) {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<FilterType>('all')
   const [sort, setSort] = useState<SortType>('category')
@@ -603,7 +581,7 @@ export function CompareTable({ productIds, onReorder }: CompareTableProps) {
   return (
     <div className="space-y-4">
       {/* 요약 카드 */}
-      <CompareSummaryCards data={data} colorMap={colorMap} onReorder={onReorder} />
+      <CompareSummaryCards data={data} colorMap={colorMap} />
 
       {/* 통계 + 필터/정렬 컨트롤 */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
