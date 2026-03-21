@@ -3,7 +3,7 @@ import { isValidUUID } from '@/lib/utils'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import type { ProductCompareResponse, ComparisonItem } from '@/types/api'
-import { parseRawMaterials } from '@pillog/shared/parse-ingredients'
+import { parseRawMaterials, parseAmount } from '@pillog/shared/parse-ingredients'
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     // Fetch products (with raw_materials for direct parsing)
     const { data: products, error: productsError } = await supabase
       .from('products')
-      .select('id, name, company, raw_materials')
+      .select('id, name, company, raw_materials, standard')
       .in('id', ids)
       .eq('is_active', true)
 
@@ -144,10 +144,22 @@ export async function GET(request: NextRequest) {
         // 이미 linked된 성분이면 스킵
         if (linkedNames.has(lower)) continue
         // 이미 unlinked로 추가된 성분인지 확인
+        // standard에서 함량 추출 헬퍼
+        const extractAmount = (name: string) => {
+          if (!product.standard) return { amount: null as number | null, rdiPct: null as number | null }
+          const [parsedAmount] = parseAmount(product.standard, name)
+          if (parsedAmount == null) return { amount: null, rdiPct: null }
+          const existingItem = ingredientMap.get(name) || ingredientMap.get(rawName)
+          const rdi = existingItem?.rdi ?? rdiMap.get(name)?.daily_rdi ?? null
+          const rdiPct = rdi && rdi > 0 ? Math.round((parsedAmount / rdi) * 100) : null
+          return { amount: parsedAmount, rdiPct }
+        }
+
         const existing = ingredientMap.get(rawName)
         if (existing) {
           if (!existing.products[product.id]) {
-            existing.products[product.id] = { amount: null, rdi_pct: null, included: true }
+            const { amount: amt, rdiPct } = extractAmount(rawName)
+            existing.products[product.id] = { amount: amt, rdi_pct: rdiPct, included: true }
           }
           continue
         }
@@ -157,7 +169,8 @@ export async function GET(request: NextRequest) {
         for (const [key, item] of ingredientMap) {
           if (key.toLowerCase() === lower) {
             if (!item.products[product.id]) {
-              item.products[product.id] = { amount: null, rdi_pct: null, included: true }
+              const { amount: amt, rdiPct } = extractAmount(key)
+              item.products[product.id] = { amount: amt, rdi_pct: rdiPct, included: true }
             }
             found = true
             break
@@ -165,8 +178,23 @@ export async function GET(request: NextRequest) {
         }
         if (found) continue
 
-        // 새 unlinked 성분 추가 (nutrient_rdi fallback 적용)
+        // 새 unlinked 성분 추가 (nutrient_rdi fallback + standard에서 함량 추출)
         const rdiRef = rdiMap.get(rawName) || rdiMap.get(rawName.replace(/\s+/g, ''))
+
+        // standard 필드에서 함량 추출
+        let amount: number | null = null
+        let rdiPct: number | null = null
+        if (product.standard) {
+          const rdiName = rdiRef ? (() => { for (const [k, v] of rdiMap) { if (v === rdiRef) return k } return rawName })() : rawName
+          const [parsedAmount] = parseAmount(product.standard, rdiName)
+          if (parsedAmount != null) {
+            amount = parsedAmount
+            if (rdiRef?.daily_rdi && rdiRef.daily_rdi > 0) {
+              rdiPct = Math.round((parsedAmount / rdiRef.daily_rdi) * 100)
+            }
+          }
+        }
+
         ingredientMap.set(rawName, {
           ingredient: rawName,
           category: rdiRef?.category || '원재료',
@@ -175,7 +203,7 @@ export async function GET(request: NextRequest) {
           unit: rdiRef?.rdi_unit ?? null,
           linked: false,
           products: {
-            [product.id]: { amount: null, rdi_pct: null, included: true },
+            [product.id]: { amount, rdi_pct: rdiPct, included: true },
           },
         })
       }
