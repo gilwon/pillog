@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { parseAmount } from '@pillog/shared/parse-ingredients'
 
 const DISCLAIMER = '이 정보는 식약처 공공데이터를 기반으로 하며, 의학적 조언이 아닙니다.'
 
@@ -66,20 +67,41 @@ export async function GET(
     const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null; description: string | null }>()
     for (const r of rdiResult.data || []) rdiMap.set(r.name, r)
 
+    const productStandard = product.standard as string | null
+
     const formattedIngredients = (ingredientsResult.data || []).map(
       (pi: Record<string, unknown>) => {
         const ing = pi.ingredient as unknown as Record<string, unknown> | null
         const name = (ing?.canonical_name as string) ?? ''
-        const rdiRef = rdiMap.get(name)
+        const rdiRef = rdiMap.get(name) || rdiMap.get(name.replace(/\s+/g, ''))
+        const dailyRdi = (ing?.daily_rdi as number) ?? rdiRef?.daily_rdi ?? null
+
+        // amount가 null이면 standard 필드에서 추출 시도
+        let amount = pi.amount as number | null
+        let amountUnit = pi.amount_unit as string | null
+        if (amount == null && productStandard) {
+          const [parsedAmount, parsedUnit] = parseAmount(productStandard, name)
+          if (parsedAmount != null) {
+            amount = parsedAmount
+            amountUnit = parsedUnit || (ing?.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null
+          }
+        }
+
+        // percentage_of_rdi가 null이면 직접 계산
+        let rdiPct = pi.percentage_of_rdi as number | null
+        if (rdiPct == null && amount != null && dailyRdi != null && dailyRdi > 0) {
+          rdiPct = Math.round((amount / dailyRdi) * 100)
+        }
+
         return {
           id: ing?.id ?? '',
           canonical_name: name,
           description: ing?.description ?? rdiRef?.description ?? null,
           primary_effect: ing?.primary_effect ?? rdiRef?.description ?? null,
-          amount: pi.amount,
-          amount_unit: pi.amount_unit,
-          percentage_of_rdi: pi.percentage_of_rdi,
-          daily_rdi: (ing?.daily_rdi as number) ?? rdiRef?.daily_rdi ?? null,
+          amount,
+          amount_unit: amountUnit,
+          percentage_of_rdi: rdiPct,
+          daily_rdi: dailyRdi,
           daily_ul: (ing?.daily_ul as number) ?? rdiRef?.daily_ul ?? null,
           rdi_unit: (ing?.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null,
           is_functional: pi.is_functional,

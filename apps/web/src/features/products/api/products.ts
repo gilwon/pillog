@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { parseAmount } from '@pillog/shared/parse-ingredients'
 import type { ProductDetailResponse, ProductCompareResponse } from '@/types/api'
 import type { ProductSearchResult } from '@/types/database'
 
@@ -110,7 +111,7 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
 
   const { data: products, error } = await supabase
     .from('products')
-    .select('id, name, company')
+    .select('id, name, company, standard')
     .in('id', ids)
 
   if (error) throw error
@@ -167,9 +168,25 @@ export async function getProductsForCompare(ids: string[]): Promise<ProductCompa
     }
 
     const entry = ingredientMap.get(name)!
+
+    // amount가 null이면 standard에서 추출 시도
+    let amount = (r.amount as number | null) ?? null
+    let rdiPct = (r.percentage_of_rdi as number | null) ?? null
+    if (amount == null) {
+      const prod = (products || []).find((p) => p.id === r.product_id)
+      if (prod?.standard) {
+        const [parsedAmount] = parseAmount(prod.standard as string, name)
+        if (parsedAmount != null) {
+          amount = parsedAmount
+          const rdi = entry.rdi
+          if (rdi && rdi > 0) rdiPct = Math.round((parsedAmount / rdi) * 100)
+        }
+      }
+    }
+
     entry.products[r.product_id as string] = {
-      amount: (r.amount as number | null) ?? null,
-      rdi_pct: (r.percentage_of_rdi as number | null) ?? null,
+      amount,
+      rdi_pct: rdiPct,
       included: true,
     }
   }
