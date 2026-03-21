@@ -27,25 +27,42 @@ const formatNumber = (num: number) =>
   Math.round(num).toLocaleString('ko-KR')
 
 export function NutrientChart({ nutrients }: NutrientChartProps) {
+  // rdi_percentage가 있는 성분은 차트에 표시, 없으면 0%로 표시 (RDI가 있는 경우만)
   const chartData = nutrients
-    .filter((n) => n.rdi_percentage != null)
+    .filter((n) => n.rdi != null || n.rdi_percentage != null)
     .map((n) => ({
       name: n.ingredient,
-      rdi_pct: n.rdi_percentage,
+      rdi_pct: n.rdi_percentage ?? 0,
       status: n.status,
-      amount: `${formatNumber(n.total_amount)}${n.unit}`,
+      amount: n.total_amount > 0 ? `${formatNumber(n.total_amount)}${n.unit}` : '함량 미표시',
       rdi: n.rdi != null ? `${formatNumber(n.rdi)}${n.unit}` : null,
       primary_effect: n.primary_effect,
     }))
 
   const effectList = nutrients.filter((n) => n.primary_effect)
 
+  if (chartData.length === 0 && nutrients.length === 0) {
+    return null
+  }
+
   if (chartData.length === 0) {
-    return (
-      <div className="rounded-xl border border-border p-8 text-center text-muted-foreground">
-        RDI 대비 섭취량 데이터가 없습니다.
-      </div>
-    )
+    // 성분은 있지만 RDI 데이터가 없는 경우 성분 설명만 표시
+    if (effectList.length > 0) {
+      return (
+        <div className="rounded-xl border border-border p-4">
+          <h2 className="mb-4 font-semibold">성분 정보</h2>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {effectList.map((n) => (
+              <div key={n.ingredient} className="flex gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs">
+                <span className="shrink-0 font-medium text-foreground">{n.ingredient}</span>
+                <span className="text-muted-foreground">{n.primary_effect}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    return null
   }
 
   return (

@@ -274,13 +274,9 @@ function DayDetailPanel({
             <div className="mt-4 flex justify-center py-4">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
-          ) : dashboardData && dashboardData.total_nutrients.length > 0 ? (
+          ) : dashboardData && (dashboardData.total_nutrients.length > 0 || dashboardData.supplements.length > 0) ? (
             <div className="mt-4">
               <NutrientChart nutrients={dashboardData.total_nutrients} />
-            </div>
-          ) : dayDetail.taken_count > 0 ? (
-            <div className="mt-4 rounded-lg border border-border p-4 text-center text-xs text-muted-foreground">
-              복용한 영양제의 RDI 데이터가 없습니다.
             </div>
           ) : null}
         </>
