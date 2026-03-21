@@ -83,7 +83,7 @@ export async function GET(
           const [parsedAmount, parsedUnit] = parseAmount(productStandard, name)
           if (parsedAmount != null) {
             amount = parsedAmount
-            amountUnit = parsedUnit || (ing?.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null
+            amountUnit = parsedUnit || ((ing?.rdi_unit as string) ?? rdiRef?.rdi_unit ?? null)
           }
         }
 
