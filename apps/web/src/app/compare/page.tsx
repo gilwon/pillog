@@ -110,7 +110,7 @@ export default function ComparePage() {
       {/* Compare table */}
       {items.length >= 2 && (
         <div className="animate-fade-in-up stagger-2">
-          <CompareTable productIds={items.map((i) => i.id)} />
+          <CompareTable productIds={items.map((i) => i.id)} onReorder={reorderItems} />
         </div>
       )}
 

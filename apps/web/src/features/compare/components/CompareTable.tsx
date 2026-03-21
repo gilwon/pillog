@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, Fragment } from 'react'
+import { useState, useMemo, useRef, Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, ChevronDown, ChevronRight, ArrowUpDown, Filter } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronRight, ArrowUpDown, Filter, GripVertical } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
 import type { ProductCompareResponse, ComparisonItem } from '@/types/api'
@@ -79,10 +79,14 @@ interface ProductSummary {
 function CompareSummaryCards({
   data,
   colorMap,
+  onReorder,
 }: {
   data: ProductCompareResponse
   colorMap: Map<string, (typeof PRODUCT_COLORS)[number]>
+  onReorder?: (fromIndex: number, toIndex: number) => void
 }) {
+  const dragItem = useRef<number | null>(null)
+  const dragOverItem = useRef<number | null>(null)
   const summaries: ProductSummary[] = data.products.map((p) => {
     const myRows = data.comparison_table.filter(
       (r) => r.products[p.id]?.included
@@ -116,23 +120,38 @@ function CompareSummaryCards({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {summaries.map((s) => {
+      {summaries.map((s, index) => {
         const color = colorMap.get(s.productId)
         return (
-          <Link
+          <div
             key={s.productId}
-            href={`/products/${s.productId}`}
+            draggable={!!onReorder}
+            onDragStart={() => { dragItem.current = index }}
+            onDragOver={(e) => { e.preventDefault(); dragOverItem.current = index }}
+            onDrop={() => {
+              if (onReorder && dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+                onReorder(dragItem.current, dragOverItem.current)
+              }
+              dragItem.current = null
+              dragOverItem.current = null
+            }}
             className={cn(
-              'block rounded-lg border p-3 text-sm transition-colors hover:ring-1 hover:ring-primary/40',
+              'group rounded-lg border p-3 text-sm transition-all',
+              onReorder && 'cursor-grab active:cursor-grabbing',
               color?.border || 'border-border',
               color?.bg || 'bg-muted/20'
             )}
           >
             <div className="mb-2 flex items-center gap-2">
+              {onReorder && (
+                <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground" />
+              )}
               <span
                 className={cn('h-2.5 w-2.5 shrink-0 rounded-full', color?.dot)}
               />
-              <p className="truncate font-medium">{s.name}</p>
+              <Link href={`/products/${s.productId}`} className="truncate font-medium hover:text-primary hover:underline">
+                {s.name}
+              </Link>
             </div>
             <div className="space-y-1 text-xs text-muted-foreground">
               <div className="flex items-center justify-between">
@@ -178,7 +197,7 @@ function CompareSummaryCards({
                 </div>
               )}
             </div>
-          </Link>
+          </div>
         )
       })}
     </div>
@@ -464,9 +483,10 @@ function DesktopTableView({
 
 interface CompareTableProps {
   productIds: string[]
+  onReorder?: (fromIndex: number, toIndex: number) => void
 }
 
-export function CompareTable({ productIds }: CompareTableProps) {
+export function CompareTable({ productIds, onReorder }: CompareTableProps) {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<FilterType>('all')
   const [sort, setSort] = useState<SortType>('category')
@@ -580,7 +600,7 @@ export function CompareTable({ productIds }: CompareTableProps) {
   return (
     <div className="space-y-4">
       {/* 요약 카드 */}
-      <CompareSummaryCards data={data} colorMap={colorMap} />
+      <CompareSummaryCards data={data} colorMap={colorMap} onReorder={onReorder} />
 
       {/* 통계 + 필터/정렬 컨트롤 */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
