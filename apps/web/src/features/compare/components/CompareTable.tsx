@@ -90,9 +90,13 @@ function CompareSummaryCards({
     const uniqueRows = myRows.filter(
       (r) => getContainingProductCount(r) === 1
     )
-    const rdiMet = myRows.filter(
-      (r) => r.products[p.id]?.rdi_pct != null && (r.products[p.id]?.rdi_pct ?? 0) >= 50
-    )
+    const rdiMet = myRows.filter((r) => {
+      const val = r.products[p.id]
+      if (!val) return false
+      // rdi_pct가 있으면 사용, 없으면 amount/rdi로 직접 계산
+      const pct = val.rdi_pct ?? (val.amount != null && r.rdi != null && r.rdi > 0 ? (val.amount / r.rdi) * 100 : null)
+      return pct != null && pct >= 50
+    })
     const overUl = myRows.filter((r) => {
       const val = r.products[p.id]?.amount
       return val != null && r.ul != null && val > r.ul
@@ -115,10 +119,11 @@ function CompareSummaryCards({
       {summaries.map((s) => {
         const color = colorMap.get(s.productId)
         return (
-          <div
+          <Link
             key={s.productId}
+            href={`/products/${s.productId}`}
             className={cn(
-              'rounded-lg border p-3 text-sm',
+              'block rounded-lg border p-3 text-sm transition-colors hover:ring-1 hover:ring-primary/40',
               color?.border || 'border-border',
               color?.bg || 'bg-muted/20'
             )}
@@ -173,7 +178,7 @@ function CompareSummaryCards({
                 </div>
               )}
             </div>
-          </div>
+          </Link>
         )
       })}
     </div>
