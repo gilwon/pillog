@@ -1,14 +1,17 @@
 'use client'
 
+import { useRef } from 'react'
 import { CompareTable } from '@/features/compare/components/CompareTable'
 import { CompareProductSearch } from '@/features/compare/components/CompareProductSearch'
 import { useCompareStore } from '@/features/compare/store/compare-store'
 import { ShareDialog } from '@/features/share/components/ShareDialog'
-import { Button } from '@/components/ui/button'
-import { ScaleIcon, X } from 'lucide-react'
+import { ScaleIcon, X, GripVertical } from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 
 export default function ComparePage() {
-  const { items, removeItem, clearAll } = useCompareStore()
+  const { items, removeItem, reorderItems, clearAll } = useCompareStore()
+  const dragItem = useRef<number | null>(null)
+  const dragOverItem = useRef<number | null>(null)
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -68,14 +71,28 @@ export default function ComparePage() {
         </div>
       )}
 
-      {/* Selected product chips */}
+      {/* Selected product chips (draggable) */}
       {items.length > 0 && (
         <div className="animate-fade-in mb-6 flex flex-wrap gap-2">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <div
               key={item.id}
-              className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm"
+              draggable
+              onDragStart={() => { dragItem.current = index }}
+              onDragOver={(e) => { e.preventDefault(); dragOverItem.current = index }}
+              onDrop={() => {
+                if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+                  reorderItems(dragItem.current, dragOverItem.current)
+                }
+                dragItem.current = null
+                dragOverItem.current = null
+              }}
+              className={cn(
+                'group flex cursor-grab items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm transition-opacity active:cursor-grabbing',
+                dragItem.current === index && 'opacity-50'
+              )}
             >
+              <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
               <span className="font-medium">{item.name}</span>
               <span className="text-muted-foreground">{item.company}</span>
               <button
