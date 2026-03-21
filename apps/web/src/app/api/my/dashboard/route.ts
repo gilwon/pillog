@@ -80,6 +80,22 @@ export async function GET(request: Request) {
 
     const supplements = supplementsResult.data
 
+    // 날짜 지정 시: user_supplements에 없지만 intake_logs에 있는 제품 (삭제된 영양제) 조회
+    const registeredProductIds = new Set(
+      ((supplements || []) as Array<Record<string, unknown>>).map((s) => s.product_id as string)
+    )
+    let removedProducts: Array<Record<string, unknown>> = []
+    if (takenProductIds) {
+      const missingIds = [...takenProductIds].filter((id) => !registeredProductIds.has(id))
+      if (missingIds.length > 0) {
+        const { data: prods } = await supabase
+          .from('products')
+          .select('id, name, raw_materials, standard')
+          .in('id', missingIds)
+        removedProducts = (prods || []) as Array<Record<string, unknown>>
+      }
+    }
+
     // nutrient_rdi 맵 구축
     const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null; description: string | null }>()
     for (const r of rdiResult.data || []) {
@@ -187,6 +203,60 @@ export async function GET(request: Request) {
           }
 
           // amount가 0이고 RDI 정보도 없으면 스킵
+          if (amount === 0 && rdiRef.daily_rdi == null) continue
+
+          if (nutrientTotals.has(rdiName)) {
+            nutrientTotals.get(rdiName)!.total_amount += amount
+          } else {
+            nutrientTotals.set(rdiName, {
+              category: rdiRef.category,
+              total_amount: amount,
+              unit: amountUnit,
+              rdi: rdiRef.daily_rdi,
+              ul: rdiRef.daily_ul,
+              primary_effect: rdiRef.description,
+            })
+          }
+        }
+      }
+    }
+
+    // 3단계: 삭제된 영양제의 영양소도 계산 (과거 날짜 조회 시)
+    for (const prod of removedProducts) {
+      supplementList.push({
+        product_name: prod.name as string,
+        daily_dose: 1,
+      })
+
+      const rawMaterials = prod.raw_materials as string | null
+      const standard = prod.standard as string | null
+      if (rawMaterials) {
+        const rawNames = parseRawMaterials(rawMaterials)
+        const processedNames = new Set<string>()
+        for (const rawName of rawNames) {
+          const lower = rawName.toLowerCase().trim()
+          if (processedNames.has(lower)) continue
+
+          const rdiRef = rdiMap.get(rawName) || rdiMap.get(rawName.replace(/\s+/g, ''))
+          if (!rdiRef) continue
+
+          processedNames.add(lower)
+
+          let rdiName = rawName
+          for (const [key, val] of rdiMap) {
+            if (val === rdiRef) { rdiName = key; break }
+          }
+
+          let amount = 0
+          let amountUnit = rdiRef.rdi_unit || 'mg'
+          if (standard) {
+            const [parsedAmount, parsedUnit] = parseAmount(standard, rdiName)
+            if (parsedAmount != null) {
+              amount = parsedAmount
+              amountUnit = parsedUnit || amountUnit
+            }
+          }
+
           if (amount === 0 && rdiRef.daily_rdi == null) continue
 
           if (nutrientTotals.has(rdiName)) {
