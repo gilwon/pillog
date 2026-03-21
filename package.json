@@ -14,7 +14,8 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "meili:seed": "tsx scripts/meilisearch/seed.ts",
-    "meili:sync": "tsx scripts/meilisearch/sync.ts"
+    "meili:sync": "tsx scripts/meilisearch/sync.ts",
+    "ingredient:sync": "tsx scripts/ingredient-sync.ts"
   },
   "packageManager": "npm@10.9.2",
   "devDependencies": {

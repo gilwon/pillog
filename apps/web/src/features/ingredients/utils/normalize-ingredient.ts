@@ -104,29 +104,11 @@ export function normalizeIngredientName(name: string): string {
 /**
  * Check if an ingredient name appears to be a functional ingredient
  * (as opposed to an excipient/additive).
+ * Uses the shared EXCIPIENTS list from @pillog/shared.
  */
-export function isFunctionalIngredient(name: string): boolean {
-  const EXCIPIENTS = [
-    '정제수',
-    '젤라틴',
-    '이산화규소',
-    '스테아르산마그네슘',
-    '히드록시프로필메틸셀룰로스',
-    'HPMC',
-    '결정셀룰로스',
-    '자당지방산에스테르',
-    '옥수수전분',
-    '카르나우바왁스',
-    '이산화티탄',
-    '글리세린',
-    '덱스트린',
-    '말토덱스트린',
-    '유당',
-    '포도당',
-  ]
+import { isExcipient } from '@pillog/shared/parse-ingredients'
+export { isExcipient }
 
-  const normalized = name.trim()
-  return !EXCIPIENTS.some(
-    (ex) => normalized === ex || normalized.includes(ex)
-  )
+export function isFunctionalIngredient(name: string): boolean {
+  return !isExcipient(name)
 }

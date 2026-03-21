@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { parseRawMaterials, parseAmount } from '@pillog/shared/parse-ingredients'
+import { parseRawMaterials, parseAmount, isExcipient } from '@pillog/shared/parse-ingredients'
 
 const BATCH_SIZE = 500
 
@@ -8,9 +8,9 @@ const BATCH_SIZE = 500
  * 예: "비타민C" → "비타민 C", "비타민 c", "L-아스코르브산" 등
  */
 function expandAliases(
-  aliasMap: Map<string, { id: string; canonical_name: string }>
+  aliasMap: Map<string, { id: string; canonical_name: string; is_functional: boolean }>
 ): void {
-  const additions: Array<[string, { id: string; canonical_name: string }]> = []
+  const additions: Array<[string, { id: string; canonical_name: string; is_functional: boolean }]> = []
 
   for (const [key, value] of aliasMap) {
     const name = value.canonical_name
@@ -77,30 +77,43 @@ export async function runIngredientSync(
   since?: string | null
 ): Promise<{ totalLinked: number; matchedProducts: number; total: number }> {
   // 1. 별칭 맵 구축
-  const aliasMap = new Map<string, { id: string; canonical_name: string }>()
+  const aliasMap = new Map<string, { id: string; canonical_name: string; is_functional: boolean }>()
   const { data: ingredients } = await supabase
     .from('ingredients')
-    .select('id, canonical_name')
+    .select('id, canonical_name, is_functional')
     .limit(10000)
   const { data: aliases } = await supabase
     .from('ingredient_aliases')
     .select('alias_name, ingredient_id')
     .limit(100000)
 
-  const idToName = new Map<string, string>()
+  const idToIngredient = new Map<string, { canonical_name: string; is_functional: boolean }>()
   for (const i of ingredients ?? []) {
-    idToName.set(i.id, i.canonical_name)
+    idToIngredient.set(i.id, { canonical_name: i.canonical_name, is_functional: i.is_functional ?? false })
     aliasMap.set(i.canonical_name.toLowerCase().trim(), {
       id: i.id,
       canonical_name: i.canonical_name,
+      is_functional: i.is_functional ?? false,
     })
   }
+  // ingredient_id → alias_name[] (for amount extraction fallback)
+  const ingredientAliases = new Map<string, string[]>()
+
   for (const a of aliases ?? []) {
-    const canonical_name = idToName.get(a.ingredient_id) ?? ''
+    const info = idToIngredient.get(a.ingredient_id)
     aliasMap.set(a.alias_name.toLowerCase().trim(), {
       id: a.ingredient_id,
-      canonical_name,
+      canonical_name: info?.canonical_name ?? '',
+      is_functional: info?.is_functional ?? false,
     })
+
+    // Build reverse alias map for parseAmount fallback
+    const existing = ingredientAliases.get(a.ingredient_id)
+    if (existing) {
+      existing.push(a.alias_name)
+    } else {
+      ingredientAliases.set(a.ingredient_id, [a.alias_name])
+    }
   }
 
   // 자동 별칭 확장
@@ -169,8 +182,8 @@ export async function runIngredientSync(
 
         let ing = aliasMap.get(lower) || aliasMap.get(noSpace)
 
-        // 부분 매칭 fallback (최소 4글자 이상만)
-        if (!ing) {
+        // 부분 매칭 fallback (최소 4글자 이상만, 부형제 제외)
+        if (!ing && !isExcipient(name)) {
           for (const [alias, candidate] of aliasMap) {
             if (alias.length >= 4 && lower.length >= 4) {
               if (alias.includes(lower) || lower.includes(alias)) {
@@ -184,13 +197,28 @@ export async function runIngredientSync(
         if (!ing || seenIds.has(ing.id)) continue
         seenIds.add(ing.id)
 
-        const [amount, amount_unit] = parseAmount(p.standard ?? '', ing.canonical_name)
+        // Try canonical name first
+        let [amount, amount_unit] = parseAmount(p.standard ?? '', ing.canonical_name)
+
+        // If failed, try the original raw name
+        if (amount == null && name !== ing.canonical_name) {
+          [amount, amount_unit] = parseAmount(p.standard ?? '', name)
+        }
+
+        // If still failed, try all aliases for this ingredient
+        if (amount == null) {
+          const aliasList = ingredientAliases.get(ing.id) ?? []
+          for (const alias of aliasList) {
+            [amount, amount_unit] = parseAmount(p.standard ?? '', alias)
+            if (amount != null) break
+          }
+        }
         piRows.push({
           product_id: p.id,
           ingredient_id: ing.id,
           amount,
           amount_unit,
-          is_functional: false,
+          is_functional: ing.is_functional ?? false,
         })
       }
 

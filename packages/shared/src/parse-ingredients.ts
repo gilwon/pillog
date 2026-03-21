@@ -115,3 +115,40 @@ export function parseAmount(standard: string, canonicalName: string): [number | 
   }
   return [null, null]
 }
+
+/** 부형제/첨가물 목록 — 기능성 원료가 아닌 제조용 보조 물질 */
+export const EXCIPIENTS = [
+  '정제수',
+  '젤라틴',
+  '이산화규소',
+  '스테아르산마그네슘',
+  '스테아르산',
+  '히드록시프로필메틸셀룰로스',
+  'HPMC',
+  '결정셀룰로스',
+  '자당지방산에스테르',
+  '옥수수전분',
+  '카르나우바왁스',
+  '이산화티탄',
+  '글리세린',
+  '덱스트린',
+  '말토덱스트린',
+  '유당',
+  '포도당',
+  '스테아린산',
+  '폴리비닐알코올',
+  '탈크',
+  '셀룰로스',
+  '카복시메틸셀룰로스',
+  '폴리소르베이트',
+  '프로필렌글리콜',
+  '마그네슘스테아레이트',
+] as const
+
+/** Check if a raw material name is an excipient (not a functional ingredient) */
+export function isExcipient(name: string): boolean {
+  const trimmed = name.trim()
+  return EXCIPIENTS.some(
+    (ex) => trimmed === ex || trimmed.includes(ex)
+  )
+}
