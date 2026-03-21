@@ -73,7 +73,12 @@ export async function GET(request: NextRequest) {
       .select('name, category, daily_rdi, daily_ul, rdi_unit')
       .limit(500)
     const rdiMap = new Map<string, { category: string; daily_rdi: number | null; daily_ul: number | null; rdi_unit: string | null }>()
-    for (const r of rdiRows || []) rdiMap.set(r.name, r)
+    for (const r of rdiRows || []) {
+      rdiMap.set(r.name, r)
+      // 띄어쓰기 제거 버전도 추가
+      const noSpace = r.name.replace(/\s+/g, '')
+      if (noSpace !== r.name) rdiMap.set(noSpace, r)
+    }
 
     // Fetch linked ingredients from product_ingredients
     const { data: allIngredients } = await supabase
@@ -160,13 +165,14 @@ export async function GET(request: NextRequest) {
         }
         if (found) continue
 
-        // 새 unlinked 성분 추가
+        // 새 unlinked 성분 추가 (nutrient_rdi fallback 적용)
+        const rdiRef = rdiMap.get(rawName) || rdiMap.get(rawName.replace(/\s+/g, ''))
         ingredientMap.set(rawName, {
           ingredient: rawName,
-          category: '원재료',
-          rdi: null,
-          ul: null,
-          unit: null,
+          category: rdiRef?.category || '원재료',
+          rdi: rdiRef?.daily_rdi ?? null,
+          ul: rdiRef?.daily_ul ?? null,
+          unit: rdiRef?.rdi_unit ?? null,
           linked: false,
           products: {
             [product.id]: { amount: null, rdi_pct: null, included: true },
