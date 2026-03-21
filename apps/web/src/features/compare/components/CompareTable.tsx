@@ -314,7 +314,7 @@ function DesktopTableView({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/50">
-            <th className="sticky left-0 z-10 min-w-[100px] bg-muted/50 px-4 py-3 text-left font-medium">
+            <th className="sticky left-0 z-10 min-w-[100px] border-r border-border/50 bg-muted/50 px-4 py-3 text-left font-medium">
               성분
             </th>
             <th className="whitespace-nowrap px-3 py-3 text-center font-medium text-muted-foreground">
@@ -386,7 +386,7 @@ function DesktopTableView({
                           i % 2 === 1 && 'bg-muted/20'
                         )}
                       >
-                        <td className="sticky left-0 z-10 min-w-[100px] whitespace-nowrap bg-background px-4 py-3 font-medium">
+                        <td className="sticky left-0 z-10 min-w-[100px] whitespace-nowrap border-r border-border/50 bg-background px-4 py-3 font-medium">
                           <div className="flex items-center gap-1.5">
                             <span>{row.ingredient}</span>
                             {isUnique && (
