@@ -119,7 +119,10 @@ function CompareSummaryCards({
   const maxRdiMet = Math.max(...summaries.map((s) => s.rdiMetCount))
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      onDragOver={(e) => e.preventDefault()}
+    >
       {summaries.map((s, index) => {
         const color = colorMap.get(s.productId)
         return (
@@ -127,8 +130,8 @@ function CompareSummaryCards({
             key={s.productId}
             draggable={!!onReorder}
             onDragStart={() => { dragItem.current = index }}
-            onDragOver={(e) => { e.preventDefault(); dragOverItem.current = index }}
-            onDrop={() => {
+            onDragEnter={() => { dragOverItem.current = index }}
+            onDragEnd={() => {
               if (onReorder && dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
                 onReorder(dragItem.current, dragOverItem.current)
               }

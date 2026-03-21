@@ -73,24 +73,24 @@ export default function ComparePage() {
 
       {/* Selected product chips (draggable) */}
       {items.length > 0 && (
-        <div className="animate-fade-in mb-6 flex flex-wrap gap-2">
+        <div
+          className="animate-fade-in mb-6 flex flex-wrap gap-2"
+          onDragOver={(e) => e.preventDefault()}
+        >
           {items.map((item, index) => (
             <div
               key={item.id}
               draggable
               onDragStart={() => { dragItem.current = index }}
-              onDragOver={(e) => { e.preventDefault(); dragOverItem.current = index }}
-              onDrop={() => {
+              onDragEnter={() => { dragOverItem.current = index }}
+              onDragEnd={() => {
                 if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
                   reorderItems(dragItem.current, dragOverItem.current)
                 }
                 dragItem.current = null
                 dragOverItem.current = null
               }}
-              className={cn(
-                'group flex cursor-grab items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm transition-opacity active:cursor-grabbing',
-                dragItem.current === index && 'opacity-50'
-              )}
+              className="group flex cursor-grab items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm active:cursor-grabbing"
             >
               <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
               <span className="font-medium">{item.name}</span>
