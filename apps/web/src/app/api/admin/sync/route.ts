@@ -121,6 +121,23 @@ export async function POST(req: NextRequest) {
   const full = body.full === true
   const since = body.since as string | undefined
 
+  // 이미 진행 중인 동기화가 있는지 확인
+  const adminSupabase = createSupabaseClient(supabaseUrl!, serviceRoleKey!)
+  const { data: runningLog } = await adminSupabase
+    .from('sync_logs')
+    .select('id, sync_type, started_at')
+    .eq('status', 'running')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (runningLog) {
+    return NextResponse.json(
+      { error: { code: 'SYNC_IN_PROGRESS', message: '이미 동기화가 진행 중입니다.', syncLogId: runningLog.id } },
+      { status: 409 }
+    )
+  }
+
   let changeDate = ''
   if (since) {
     changeDate = since.replace(/-/g, '')

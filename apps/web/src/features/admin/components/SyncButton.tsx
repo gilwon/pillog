@@ -64,7 +64,12 @@ export function SyncButton() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || '동기화 실패')
+        const err = data.error
+        if (err?.code === 'SYNC_IN_PROGRESS') {
+          setError('이미 동기화가 진행 중입니다. 완료 후 다시 시도해주세요.')
+        } else {
+          setError(typeof err === 'string' ? err : err?.message || '동기화 실패')
+        }
         return
       }
 
