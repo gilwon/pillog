@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useAdminProducts, useToggleProduct, useDeleteProduct } from '../hooks/useAdminProducts'
+import { useAdminProducts, useToggleProduct, useDeleteProduct, useBulkDeleteProducts } from '../hooks/useAdminProducts'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,7 @@ export function ProductsTable() {
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState('reported_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const { data, isLoading } = useAdminProducts({ q: query, status, page, limit: 20, sortBy, sortOrder })
 
@@ -36,18 +37,81 @@ export function ProductsTable() {
   }
   const toggleMutation = useToggleProduct()
   const deleteMutation = useDeleteProduct()
+  const bulkDeleteMutation = useBulkDeleteProducts()
+
+  const pageIds = data?.data.map((p) => p.id) ?? []
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id))
+  const someSelected = selectedIds.size > 0
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        pageIds.forEach((id) => next.delete(id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        pageIds.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }
+
+  const handleBulkDelete = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (!confirm(`선택한 ${ids.length}개 제품을 삭제하시겠습니까?\n관련된 사용자 데이터도 함께 삭제됩니다.`)) return
+    bulkDeleteMutation.mutate(ids, {
+      onSuccess: () => setSelectedIds(new Set()),
+    })
+  }
+
+  // 페이지/필터 변경 시 선택 초기화
+  const handleFilterChange = (fn: () => void) => {
+    setSelectedIds(new Set())
+    fn()
+  }
 
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>제품 목록</CardTitle>
-          <Link href="/admin/products/new">
-            <Button size="sm" className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              제품 등록
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {someSelected && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+              >
+                {bulkDeleteMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {selectedIds.size}개 삭제
+              </Button>
+            )}
+            <Link href="/admin/products/new">
+              <Button size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                제품 등록
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Filters */}
@@ -55,7 +119,7 @@ export function ProductsTable() {
           <AdminSearchInput
             placeholder="제품명, 업체명, 신고번호 검색..."
             type="products"
-            onSearch={(q) => { setQuery(q); setPage(1) }}
+            onSearch={(q) => handleFilterChange(() => { setQuery(q); setPage(1) })}
           />
           <div className="flex gap-1.5">
             {[
@@ -69,7 +133,7 @@ export function ProductsTable() {
                 variant={status === opt.value ? 'default' : 'outline'}
                 size="sm"
                 className={opt.value === 'removed' && status !== 'removed' ? 'border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950' : ''}
-                onClick={() => { setStatus(opt.value); setPage(1) }}
+                onClick={() => handleFilterChange(() => { setStatus(opt.value); setPage(1) })}
               >
                 {opt.label}
               </Button>
@@ -98,6 +162,14 @@ export function ProductsTable() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
+                    <th className="pb-3 pr-2 text-left">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-border accent-primary"
+                      />
+                    </th>
                     <th className="pb-3 pr-4 text-left font-medium text-muted-foreground">
                       <button onClick={() => handleSort('name')} className="flex items-center hover:text-foreground">
                         제품명<SortIcon column="name" />
@@ -135,7 +207,18 @@ export function ProductsTable() {
                 </thead>
                 <tbody>
                   {data.data.map((product) => (
-                    <tr key={product.id} className="border-b border-border last:border-0">
+                    <tr
+                      key={product.id}
+                      className={`border-b border-border last:border-0 ${selectedIds.has(product.id) ? 'bg-primary/5' : ''}`}
+                    >
+                      <td className="py-3 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(product.id)}
+                          onChange={() => toggleSelect(product.id)}
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                      </td>
                       <td className="py-3 pr-4">
                         <Link href={`/admin/products/${product.id}/edit`} className="font-medium hover:text-primary hover:underline">
                           {product.name}
@@ -222,13 +305,16 @@ export function ProductsTable() {
             {data.pagination.total_pages > 1 && (
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">
+                  {someSelected && (
+                    <span className="mr-2 font-medium text-primary">{selectedIds.size}개 선택됨 ·</span>
+                  )}
                   {data.pagination.total.toLocaleString()}개 중 {((page - 1) * 20 + 1).toLocaleString()}-{Math.min(page * 20, data.pagination.total).toLocaleString()}
                 </p>
                 <div className="flex gap-1">
                   <Button
                     variant="outline"
                     size="icon-sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => { setPage((p) => Math.max(1, p - 1)); setSelectedIds(new Set()) }}
                     disabled={page <= 1}
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -239,7 +325,7 @@ export function ProductsTable() {
                   <Button
                     variant="outline"
                     size="icon-sm"
-                    onClick={() => setPage((p) => Math.min(data.pagination.total_pages, p + 1))}
+                    onClick={() => { setPage((p) => Math.min(data.pagination.total_pages, p + 1)); setSelectedIds(new Set()) }}
                     disabled={page >= data.pagination.total_pages}
                   >
                     <ChevronRight className="h-4 w-4" />

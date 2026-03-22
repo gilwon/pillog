@@ -69,6 +69,15 @@ async function deleteProduct(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete product')
 }
 
+async function bulkDeleteProducts(ids: string[]): Promise<void> {
+  const res = await fetch('/api/admin/products/bulk-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  if (!res.ok) throw new Error('Failed to bulk delete products')
+}
+
 export function useAdminProducts(params: ProductsParams) {
   return useQuery({
     queryKey: ['admin', 'products', params],
@@ -120,6 +129,17 @@ export function useDeleteProduct() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+    },
+  })
+}
+
+export function useBulkDeleteProducts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: bulkDeleteProducts,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
