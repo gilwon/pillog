@@ -174,6 +174,9 @@ export async function POST(req: NextRequest) {
         .single()
       const syncLogId: string | null = logRow?.id ?? null
 
+      // 중간 진행상황을 sync_logs에 주기적으로 저장 (5배치마다)
+      const PROGRESS_UPDATE_INTERVAL = 5
+
       for (let batchNum = 1; batchNum <= totalBatches; batchNum++) {
         const start = (batchNum - 1) * BATCH_SIZE + 1
         const end = Math.min(batchNum * BATCH_SIZE, total)
@@ -211,6 +214,22 @@ export async function POST(req: NextRequest) {
           upserted: totalUpserted,
           total,
         }))
+
+        // sync_logs에 중간 진행상황 업데이트
+        if (syncLogId && (batchNum % PROGRESS_UPDATE_INTERVAL === 0 || batchNum === totalBatches)) {
+          await supabase
+            .from('sync_logs')
+            .update({
+              total_fetched: total,
+              new_count: totalUpserted,
+              updated_count: 0,
+              failed_batches: failedBatches,
+              progress_batch: batchNum,
+              progress_total_batches: totalBatches,
+            })
+            .eq('id', syncLogId)
+            .then(() => {}) // fire-and-forget
+        }
 
         if (batchNum < totalBatches) {
           await new Promise((r) => setTimeout(r, 300))

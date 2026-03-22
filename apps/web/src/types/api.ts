@@ -175,6 +175,8 @@ export interface SyncLog {
   error_message: string | null
   started_at: string
   completed_at: string | null
+  progress_batch: number
+  progress_total_batches: number
 }
 
 export interface SyncLogProduct {

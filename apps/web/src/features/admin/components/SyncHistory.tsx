@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { RefreshCw } from 'lucide-react'
@@ -37,6 +37,46 @@ function getDuration(started: string, completed: string | null) {
   return `${Math.floor(diff / 60)}m ${diff % 60}s`
 }
 
+/** 진행 중인 sync의 경과 시간을 실시간으로 표시 */
+function ElapsedTime({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState('')
+
+  useEffect(() => {
+    function update() {
+      const diff = Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)
+      if (diff < 60) setElapsed(`${diff}s`)
+      else setElapsed(`${Math.floor(diff / 60)}m ${diff % 60}s`)
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [startedAt])
+
+  return <span className="tabular-nums">{elapsed}</span>
+}
+
+/** 진행 중인 sync의 배치 진행률 표시 */
+function RunningProgress({ log }: { log: SyncLog }) {
+  const { progress_batch, progress_total_batches, total_fetched, new_count } = log
+  if (progress_total_batches === 0) {
+    return <span className="text-muted-foreground">준비 중...</span>
+  }
+  const pct = Math.round((progress_batch / progress_total_batches) * 100)
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full bg-blue-500 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="tabular-nums whitespace-nowrap">
+        {new_count.toLocaleString()}/{total_fetched.toLocaleString()} ({pct}%)
+      </span>
+    </div>
+  )
+}
+
 export function SyncHistory() {
   const queryClient = useQueryClient()
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
@@ -44,6 +84,12 @@ export function SyncHistory() {
     queryKey: ['admin', 'sync', 'logs'],
     queryFn: fetchSyncLogs,
     staleTime: 30 * 1000,
+    // running 상태가 있으면 5초마다 자동 폴링
+    refetchInterval: (query) => {
+      const logs = query.state.data?.data
+      const hasRunning = logs?.some((log) => log.status === 'running')
+      return hasRunning ? 5000 : false
+    },
   })
 
   return (
@@ -104,20 +150,35 @@ export function SyncHistory() {
                         {log.sync_type === 'full' ? '전체' : '증분'}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-green-600 dark:text-green-400">
-                      {log.new_count > 0 ? `+${log.new_count.toLocaleString()}` : '-'}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-blue-600 dark:text-blue-400">
-                      {log.updated_count > 0 ? log.updated_count.toLocaleString() : '-'}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-amber-600 dark:text-amber-400">
-                      {log.deactivated_count > 0 ? log.deactivated_count.toLocaleString() : '-'}
-                    </td>
+
+                    {/* 진행 중일 때는 진행률 표시, 완료 시 기존 카운트 표시 */}
+                    {log.status === 'running' ? (
+                      <td colSpan={3} className="px-4 py-2.5 text-xs">
+                        <RunningProgress log={log} />
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2.5 text-right font-mono text-green-600 dark:text-green-400">
+                          {log.new_count > 0 ? `+${log.new_count.toLocaleString()}` : '-'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-blue-600 dark:text-blue-400">
+                          {log.updated_count > 0 ? log.updated_count.toLocaleString() : '-'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-amber-600 dark:text-amber-400">
+                          {log.deactivated_count > 0 ? log.deactivated_count.toLocaleString() : '-'}
+                        </td>
+                      </>
+                    )}
+
                     <td className="px-4 py-2.5 text-center">
                       <StatusBadge status={log.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-muted-foreground">
-                      {getDuration(log.started_at, log.completed_at)}
+                      {log.status === 'running' ? (
+                        <ElapsedTime startedAt={log.started_at} />
+                      ) : (
+                        getDuration(log.started_at, log.completed_at)
+                      )}
                     </td>
                   </tr>
                 ))
