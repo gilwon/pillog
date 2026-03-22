@@ -1,0 +1,5 @@
+.next
+.turbo
+apps/web/.next
+apps/mobile
+scripts/pipeline
