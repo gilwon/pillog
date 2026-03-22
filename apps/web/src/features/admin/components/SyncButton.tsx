@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, ChevronDown } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -40,7 +40,12 @@ const initialIngredientPhase: IngredientPhase = {
 
 const MAX_RESUME_RETRIES = 10 // 최대 이어하기 횟수
 
-export function SyncButton() {
+export interface SyncButtonHandle {
+  resume: (logId: string, fromBatch: number, full: boolean) => void
+  isLoading: boolean
+}
+
+export const SyncButton = forwardRef<SyncButtonHandle>(function SyncButton(_props, ref) {
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState<SyncProgress | null>(null)
   const [result, setResult] = useState<SyncResult | null>(null)
@@ -55,6 +60,13 @@ export function SyncButton() {
   const lastBatch = useRef(0)
   const receivedDone = useRef(false)
   const isFull = useRef(false)
+
+  useImperativeHandle(ref, () => ({
+    resume: (logId: string, fromBatch: number, full: boolean) => {
+      if (!isLoading) runSync(full, logId, fromBatch + 1)
+    },
+    isLoading,
+  }), [isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const runSync = async (full: boolean, resumeLogId?: string, resumeFromBatch?: number) => {
     setIsLoading(true)
@@ -320,4 +332,4 @@ export function SyncButton() {
       )}
     </div>
   )
-}
+})

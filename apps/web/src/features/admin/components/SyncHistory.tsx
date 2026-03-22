@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { RefreshCw, Trash2, Loader2 } from 'lucide-react'
+import { RefreshCw, Trash2, Loader2, Play } from 'lucide-react'
 import { SyncLogDetail } from './SyncLogDetail'
 import type { SyncLog, SyncLogsResponse } from '@/types/api'
 
@@ -84,7 +84,12 @@ function RunningProgress({ log }: { log: SyncLog }) {
   )
 }
 
-export function SyncHistory() {
+interface SyncHistoryProps {
+  onResume?: (logId: string, fromBatch: number, full: boolean) => void
+  isSyncing?: boolean
+}
+
+export function SyncHistory({ onResume, isSyncing }: SyncHistoryProps = {}) {
   const queryClient = useQueryClient()
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -253,7 +258,22 @@ export function SyncHistory() {
                     )}
 
                     <td className="px-4 py-2.5 text-center" onClick={() => setSelectedLogId(log.id)}>
-                      <StatusBadge status={log.status} />
+                      <div className="flex items-center justify-center gap-1.5">
+                        <StatusBadge status={log.status} />
+                        {log.status === 'running' && onResume && !isSyncing && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onResume(log.id, log.progress_batch, log.sync_type === 'full')
+                            }}
+                            className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                            title="마지막 배치부터 이어서 동기화"
+                          >
+                            <Play className="h-3 w-3" />
+                            이어하기
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-muted-foreground" onClick={() => setSelectedLogId(log.id)}>
                       {log.status === 'running' ? (
