@@ -309,36 +309,30 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 동기화된 제품 기록
+      // 동기화된 제품 카운트 (신규 vs 업데이트)
       if (syncLogId) {
         try {
-          const { data: touched } = await supabase
-            .from('products')
-            .select('id, created_at')
-            .gte('synced_at', syncStart)
-
-          const logProducts = (touched ?? []).map((p: { id: string; created_at: string }) => ({
-            sync_log_id: syncLogId,
-            product_id: p.id,
-            change_type: p.created_at >= syncStart ? 'new' : 'updated',
-          }))
-
-          // 이어하기 시 기존 로그 제품 삭제 후 재삽입
-          if (resumeLogId) {
-            await supabase.from('sync_log_products').delete().eq('sync_log_id', syncLogId)
-          }
-
-          for (let i = 0; i < logProducts.length; i += 500) {
-            await supabase.from('sync_log_products').insert(logProducts.slice(i, i + 500))
-          }
+          // 카운트만 조회 (전체 행을 가져오지 않음 — Supabase 1000행 limit 회피)
+          const [{ count: newCount }, { count: updatedCount }] = await Promise.all([
+            supabase
+              .from('products')
+              .select('id', { count: 'exact', head: true })
+              .gte('synced_at', syncStart)
+              .gte('created_at', syncStart),
+            supabase
+              .from('products')
+              .select('id', { count: 'exact', head: true })
+              .gte('synced_at', syncStart)
+              .lt('created_at', syncStart),
+          ])
 
           await supabase
             .from('sync_logs')
             .update({
               status: failedBatches > 0 && totalUpserted === 0 ? 'failed' : 'completed',
               total_fetched: total,
-              new_count: logProducts.filter((p: { change_type: string }) => p.change_type === 'new').length,
-              updated_count: logProducts.filter((p: { change_type: string }) => p.change_type === 'updated').length,
+              new_count: newCount ?? 0,
+              updated_count: updatedCount ?? 0,
               deactivated_count: deactivatedCount,
               failed_batches: failedBatches,
               completed_at: new Date().toISOString(),
