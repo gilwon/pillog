@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, ChevronDown } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -38,6 +38,8 @@ const initialIngredientPhase: IngredientPhase = {
   message: null,
 }
 
+const MAX_RESUME_RETRIES = 10 // 최대 이어하기 횟수
+
 export function SyncButton() {
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState<SyncProgress | null>(null)
@@ -45,21 +47,42 @@ export function SyncButton() {
   const [ingredientPhase, setIngredientPhase] = useState<IngredientPhase>(initialIngredientPhase)
   const [error, setError] = useState<string | null>(null)
   const [showMenu, setShowMenu] = useState(false)
+  const [resumeCount, setResumeCount] = useState(0)
   const queryClient = useQueryClient()
 
-  const runSync = async (full: boolean) => {
+  // 스트림 진행 중 마지막 상태 추적 (auto-resume용)
+  const lastSyncLogId = useRef<string | null>(null)
+  const lastBatch = useRef(0)
+  const receivedDone = useRef(false)
+  const isFull = useRef(false)
+
+  const runSync = async (full: boolean, resumeLogId?: string, resumeFromBatch?: number) => {
     setIsLoading(true)
-    setProgress(null)
-    setResult(null)
-    setIngredientPhase(initialIngredientPhase)
-    setError(null)
+    if (!resumeLogId) {
+      // 새 동기화일 때만 초기화
+      setProgress(null)
+      setResult(null)
+      setIngredientPhase(initialIngredientPhase)
+      setError(null)
+      setResumeCount(0)
+      lastSyncLogId.current = null
+      lastBatch.current = 0
+    }
+    receivedDone.current = false
+    isFull.current = full
     setShowMenu(false)
 
     try {
+      const body: Record<string, unknown> = { full }
+      if (resumeLogId) {
+        body.resumeLogId = resumeLogId
+        body.resumeFromBatch = resumeFromBatch
+      }
+
       const res = await fetch('/api/admin/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -70,11 +93,13 @@ export function SyncButton() {
         } else {
           setError(typeof err === 'string' ? err : err?.message || '동기화 실패')
         }
+        setIsLoading(false)
         return
       }
 
       if (!res.body) {
         setError('스트림 응답을 받을 수 없습니다.')
+        setIsLoading(false)
         return
       }
 
@@ -95,10 +120,14 @@ export function SyncButton() {
           try {
             const msg = JSON.parse(line)
             if (msg.type === 'start') {
-              setProgress({ batch: 0, totalBatches: msg.totalBatches, upserted: 0, total: msg.total })
+              if (msg.syncLogId) lastSyncLogId.current = msg.syncLogId
+              setProgress({ batch: msg.resumedFrom ?? 0, totalBatches: msg.totalBatches, upserted: 0, total: msg.total })
             } else if (msg.type === 'progress') {
+              lastBatch.current = msg.batch
+              if (msg.syncLogId) lastSyncLogId.current = msg.syncLogId
               setProgress({ batch: msg.batch, totalBatches: msg.totalBatches, upserted: msg.upserted, total: msg.total })
             } else if (msg.type === 'done') {
+              receivedDone.current = true
               setResult({ count: msg.count, total: msg.total, failedBatches: msg.failedBatches ?? 0, deactivated: msg.deactivated ?? 0, message: msg.message })
               setProgress(null)
               queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
@@ -135,11 +164,38 @@ export function SyncButton() {
           }
         }
       }
+
+      // 스트림이 끊겼는데 done을 못 받았으면 → 타임아웃으로 끊긴 것 → 자동 이어하기
+      if (!receivedDone.current && lastSyncLogId.current && lastBatch.current > 0) {
+        const nextResume = resumeCount + 1
+        if (nextResume <= MAX_RESUME_RETRIES) {
+          setResumeCount(nextResume)
+          setError(null)
+          // 다음 배치부터 이어하기 (1초 대기 후)
+          await new Promise((r) => setTimeout(r, 1000))
+          return runSync(isFull.current, lastSyncLogId.current!, lastBatch.current + 1)
+        } else {
+          setError(`타임아웃으로 중단됨 (${lastBatch.current}배치까지 완료). 새로고침 후 다시 시도해주세요.`)
+        }
+      }
     } catch {
+      // 네트워크 오류 시에도 자동 이어하기 시도
+      if (!receivedDone.current && lastSyncLogId.current && lastBatch.current > 0) {
+        const nextResume = resumeCount + 1
+        if (nextResume <= MAX_RESUME_RETRIES) {
+          setResumeCount(nextResume)
+          setError(null)
+          await new Promise((r) => setTimeout(r, 2000))
+          return runSync(isFull.current, lastSyncLogId.current!, lastBatch.current + 1)
+        }
+      }
       setError('네트워크 오류가 발생했습니다.')
     } finally {
-      setIsLoading(false)
-      setProgress(null)
+      if (receivedDone.current || !lastSyncLogId.current || lastBatch.current === 0) {
+        setIsLoading(false)
+        setProgress(null)
+        setResumeCount(0)
+      }
     }
   }
 
@@ -193,7 +249,12 @@ export function SyncButton() {
       {isLoading && progress && (
         <div className="w-64 space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>배치 {progress.batch}/{progress.totalBatches} · {pct}%</span>
+            <span>
+              배치 {progress.batch}/{progress.totalBatches} · {pct}%
+              {resumeCount > 0 && (
+                <span className="ml-1 text-blue-500">(이어하기 {resumeCount}회)</span>
+              )}
+            </span>
             <span>{progress.upserted.toLocaleString()}개 처리됨</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-muted">

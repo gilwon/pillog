@@ -120,22 +120,28 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const full = body.full === true
   const since = body.since as string | undefined
+  // 이어하기 파라미터
+  const resumeLogId = body.resumeLogId as string | undefined
+  const resumeFromBatch = body.resumeFromBatch as number | undefined
 
-  // 이미 진행 중인 동기화가 있는지 확인
   const adminSupabase = createSupabaseClient(supabaseUrl!, serviceRoleKey!)
-  const { data: runningLog } = await adminSupabase
-    .from('sync_logs')
-    .select('id, sync_type, started_at')
-    .eq('status', 'running')
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .single()
 
-  if (runningLog) {
-    return NextResponse.json(
-      { error: { code: 'SYNC_IN_PROGRESS', message: '이미 동기화가 진행 중입니다.', syncLogId: runningLog.id } },
-      { status: 409 }
-    )
+  // 이어하기가 아닌 경우: 중복 실행 방지
+  if (!resumeLogId) {
+    const { data: runningLog } = await adminSupabase
+      .from('sync_logs')
+      .select('id, sync_type, started_at')
+      .eq('status', 'running')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (runningLog) {
+      return NextResponse.json(
+        { error: { code: 'SYNC_IN_PROGRESS', message: '이미 동기화가 진행 중입니다.', syncLogId: runningLog.id } },
+        { status: 409 }
+      )
+    }
   }
 
   let changeDate = ''
@@ -161,6 +167,7 @@ export async function POST(req: NextRequest) {
   }
 
   const totalBatches = Math.ceil(total / BATCH_SIZE)
+  const startBatch = resumeFromBatch && resumeFromBatch > 0 ? resumeFromBatch : 1
   const encoder = new TextEncoder()
   const send = (obj: object) => encoder.encode(JSON.stringify(obj) + '\n')
 
@@ -172,29 +179,50 @@ export async function POST(req: NextRequest) {
         return
       }
 
-      controller.enqueue(send({ type: 'start', total, totalBatches }))
-
       const supabase = createSupabaseClient(supabaseUrl!, serviceRoleKey!)
       let totalUpserted = 0
       let failedBatches = 0
-      const syncStart = new Date().toISOString()
 
-      // sync_log 생성 (service role supabase 사용)
-      const { data: logRow } = await supabase
-        .from('sync_logs')
-        .insert({
-          sync_type: full ? 'full' : 'incremental',
-          change_date: changeDate || null,
-          started_at: syncStart,
-        })
-        .select('id')
-        .single()
-      const syncLogId: string | null = logRow?.id ?? null
+      // 이어하기: 기존 sync_log 재사용 / 신규: 새로 생성
+      let syncLogId: string | null = null
+      let syncStart: string
 
-      // 중간 진행상황을 sync_logs에 주기적으로 저장 (5배치마다)
-      const PROGRESS_UPDATE_INTERVAL = 5
+      if (resumeLogId) {
+        syncLogId = resumeLogId
+        // 기존 sync_log의 started_at 조회
+        const { data: existingLog } = await supabase
+          .from('sync_logs')
+          .select('started_at, new_count, failed_batches')
+          .eq('id', resumeLogId)
+          .single()
+        syncStart = existingLog?.started_at ?? new Date().toISOString()
+        totalUpserted = existingLog?.new_count ?? 0
+        failedBatches = existingLog?.failed_batches ?? 0
+      } else {
+        syncStart = new Date().toISOString()
+        const { data: logRow } = await supabase
+          .from('sync_logs')
+          .insert({
+            sync_type: full ? 'full' : 'incremental',
+            change_date: changeDate || null,
+            started_at: syncStart,
+          })
+          .select('id')
+          .single()
+        syncLogId = logRow?.id ?? null
+      }
 
-      for (let batchNum = 1; batchNum <= totalBatches; batchNum++) {
+      controller.enqueue(send({
+        type: 'start',
+        total,
+        totalBatches,
+        syncLogId,
+        resumedFrom: startBatch > 1 ? startBatch : undefined,
+      }))
+
+      const PROGRESS_UPDATE_INTERVAL = 3
+
+      for (let batchNum = startBatch; batchNum <= totalBatches; batchNum++) {
         const start = (batchNum - 1) * BATCH_SIZE + 1
         const end = Math.min(batchNum * BATCH_SIZE, total)
 
@@ -209,15 +237,14 @@ export async function POST(req: NextRequest) {
             .map(transformProduct)
 
           if (products.length > 0) {
-            const { data: upserted, error } = await supabase
+            const { error } = await supabase
               .from('products')
-              .upsert(products, { onConflict: 'report_no' })
-              .select('id')
+              .upsert(products, { onConflict: 'report_no', count: 'exact' })
 
             if (error) {
               failedBatches++
             } else {
-              totalUpserted += upserted?.length ?? 0
+              totalUpserted += products.length
             }
           }
         } catch {
@@ -230,11 +257,12 @@ export async function POST(req: NextRequest) {
           totalBatches,
           upserted: totalUpserted,
           total,
+          syncLogId,
         }))
 
         // sync_logs에 중간 진행상황 업데이트
         if (syncLogId && (batchNum % PROGRESS_UPDATE_INTERVAL === 0 || batchNum === totalBatches)) {
-          await supabase
+          supabase
             .from('sync_logs')
             .update({
               total_fetched: total,
@@ -246,10 +274,6 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', syncLogId)
             .then(() => {}) // fire-and-forget
-        }
-
-        if (batchNum < totalBatches) {
-          await new Promise((r) => setTimeout(r, 300))
         }
       }
 
@@ -298,6 +322,11 @@ export async function POST(req: NextRequest) {
             product_id: p.id,
             change_type: p.created_at >= syncStart ? 'new' : 'updated',
           }))
+
+          // 이어하기 시 기존 로그 제품 삭제 후 재삽입
+          if (resumeLogId) {
+            await supabase.from('sync_log_products').delete().eq('sync_log_id', syncLogId)
+          }
 
           for (let i = 0; i < logProducts.length; i += 500) {
             await supabase.from('sync_log_products').insert(logProducts.slice(i, i + 500))
