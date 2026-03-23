@@ -23,14 +23,9 @@ export async function GET(request: NextRequest) {
       : 'created_at'
     const ascending = searchParams.get('sortOrder') === 'asc'
 
-    const hasFilter = !!(query || status)
-
-    // 필터 없으면 planned(추정치)로 빠르게, 필터 있으면 exact로 정확하게
-    const countMethod = hasFilter ? 'exact' as const : 'planned' as const
-
     let queryBuilder = supabase
       .from('products')
-      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: countMethod })
+      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: 'exact' })
 
     // 상태 필터
     if (status === 'active') {

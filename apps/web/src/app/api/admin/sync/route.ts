@@ -309,21 +309,32 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 동기화된 제품 카운트 (신규 vs 업데이트)
+      // 동기화된 제품 카운트 (신규 vs 업데이트) + sync_log_products 기록
       if (syncLogId) {
         try {
-          // 카운트만 조회 (전체 행을 가져오지 않음 — Supabase 1000행 limit 회피)
-          const [{ count: newCount }, { count: updatedCount }] = await Promise.all([
-            supabase
-              .from('products')
-              .select('id', { count: 'exact', head: true })
-              .gte('synced_at', syncStart)
-              .gte('created_at', syncStart),
-            supabase
-              .from('products')
-              .select('id', { count: 'exact', head: true })
-              .gte('synced_at', syncStart)
-              .lt('created_at', syncStart),
+          // 신규/업데이트 제품 ID 조회 (페이징으로 1000행 limit 회피)
+          async function fetchProductIds(isNew: boolean): Promise<{ id: string }[]> {
+            const all: { id: string }[] = []
+            let from = 0
+            const pageSize = 1000
+            while (true) {
+              let q = supabase
+                .from('products')
+                .select('id')
+                .gte('synced_at', syncStart)
+              q = isNew ? q.gte('created_at', syncStart) : q.lt('created_at', syncStart)
+              const { data } = await q.range(from, from + pageSize - 1)
+              if (!data || data.length === 0) break
+              all.push(...(data as { id: string }[]))
+              if (data.length < pageSize) break
+              from += pageSize
+            }
+            return all
+          }
+
+          const [newProducts, updatedProducts] = await Promise.all([
+            fetchProductIds(true),
+            fetchProductIds(false),
           ])
 
           await supabase
@@ -331,13 +342,29 @@ export async function POST(req: NextRequest) {
             .update({
               status: failedBatches > 0 && totalUpserted === 0 ? 'failed' : 'completed',
               total_fetched: total,
-              new_count: newCount ?? 0,
-              updated_count: updatedCount ?? 0,
+              new_count: newProducts.length,
+              updated_count: updatedProducts.length,
               deactivated_count: deactivatedCount,
               failed_batches: failedBatches,
               completed_at: new Date().toISOString(),
             })
             .eq('id', syncLogId)
+
+          // sync_log_products에 개별 제품 변경 기록 저장
+          const insertLogProducts = async (products: { id: string }[], changeType: string) => {
+            for (let i = 0; i < products.length; i += 500) {
+              await supabase.from('sync_log_products').insert(
+                products.slice(i, i + 500).map((p) => ({
+                  sync_log_id: syncLogId,
+                  product_id: p.id,
+                  change_type: changeType,
+                }))
+              )
+            }
+          }
+
+          if (newProducts.length > 0) await insertLogProducts(newProducts, 'new')
+          if (updatedProducts.length > 0) await insertLogProducts(updatedProducts, 'updated')
         } catch {
           // 로그 저장 실패는 동기화 결과에 영향 없음
         }
