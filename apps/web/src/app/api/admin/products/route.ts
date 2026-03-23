@@ -23,45 +23,53 @@ export async function GET(request: NextRequest) {
       : 'created_at'
     const ascending = searchParams.get('sortOrder') === 'asc'
 
-    const hasFilter = !!(query || status)
-    const countMethod = hasFilter ? 'exact' as const : 'planned' as const
-
-    let queryBuilder = supabase
+    // 데이터 쿼리 (카운트 없이, 정렬+페이징만 — 빠름)
+    let dataQuery = supabase
       .from('products')
-      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: countMethod })
+      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at')
 
-    // 상태 필터
+    // 카운트 쿼리 (head: true로 데이터 없이 카운트만)
+    let countQuery = supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+
+    // 필터 적용 (양쪽 동일)
     if (status === 'active') {
-      queryBuilder = queryBuilder.eq('is_active', true)
+      dataQuery = dataQuery.eq('is_active', true)
+      countQuery = countQuery.eq('is_active', true)
     } else if (status === 'inactive') {
-      queryBuilder = queryBuilder.eq('is_active', false)
+      dataQuery = dataQuery.eq('is_active', false)
+      countQuery = countQuery.eq('is_active', false)
     } else if (status === 'removed') {
-      queryBuilder = queryBuilder.eq('removed_from_api', true)
+      dataQuery = dataQuery.eq('removed_from_api', true)
+      countQuery = countQuery.eq('removed_from_api', true)
     }
-
-    // 검색어 필터
     if (query) {
       const escaped = escapeLike(query)
-      queryBuilder = queryBuilder.or(`name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`)
+      const orFilter = `name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`
+      dataQuery = dataQuery.or(orFilter)
+      countQuery = countQuery.or(orFilter)
     }
 
-    // 정렬
+    // 정렬 (데이터 쿼리에만)
     const hasCustomSort = searchParams.has('sortBy')
-    let sortedQuery = queryBuilder
     if (!hasCustomSort) {
-      sortedQuery = sortedQuery.order('created_at', { ascending: false })
+      dataQuery = dataQuery.order('created_at', { ascending: false })
     } else {
-      sortedQuery = sortedQuery.order(sortBy, { ascending })
+      dataQuery = dataQuery.order(sortBy, { ascending })
     }
 
-    const { data, error, count } = await sortedQuery
-      .range(offset, offset + limit - 1)
+    // 병렬 실행
+    const [dataResult, countResult] = await Promise.all([
+      dataQuery.range(offset, offset + limit - 1),
+      countQuery,
+    ])
 
-    if (error) throw error
+    if (dataResult.error) throw dataResult.error
 
-    const total = count ?? 0
+    const total = countResult.count ?? 0
     const response: AdminProductsResponse = {
-      data: data || [],
+      data: dataResult.data || [],
       pagination: {
         page,
         limit,
