@@ -23,53 +23,53 @@ export async function GET(request: NextRequest) {
       : 'created_at'
     const ascending = searchParams.get('sortOrder') === 'asc'
 
-    // 데이터 쿼리 (카운트 없이, 정렬+페이징만 — 빠름)
-    let dataQuery = supabase
+    let queryBuilder = supabase
       .from('products')
       .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at')
 
-    // 카운트 쿼리 (head: true로 데이터 없이 카운트만)
-    let countQuery = supabase
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-
-    // 필터 적용 (양쪽 동일)
+    // 상태 필터
     if (status === 'active') {
-      dataQuery = dataQuery.eq('is_active', true)
-      countQuery = countQuery.eq('is_active', true)
+      queryBuilder = queryBuilder.eq('is_active', true)
     } else if (status === 'inactive') {
-      dataQuery = dataQuery.eq('is_active', false)
-      countQuery = countQuery.eq('is_active', false)
+      queryBuilder = queryBuilder.eq('is_active', false)
     } else if (status === 'removed') {
-      dataQuery = dataQuery.eq('removed_from_api', true)
-      countQuery = countQuery.eq('removed_from_api', true)
+      queryBuilder = queryBuilder.eq('removed_from_api', true)
     }
+
+    // 검색어 필터
     if (query) {
       const escaped = escapeLike(query)
-      const orFilter = `name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`
-      dataQuery = dataQuery.or(orFilter)
-      countQuery = countQuery.or(orFilter)
+      queryBuilder = queryBuilder.or(`name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`)
     }
 
-    // 정렬 (데이터 쿼리에만)
+    // 정렬
     const hasCustomSort = searchParams.has('sortBy')
     if (!hasCustomSort) {
-      dataQuery = dataQuery.order('created_at', { ascending: false })
+      queryBuilder = queryBuilder.order('created_at', { ascending: false })
     } else {
-      dataQuery = dataQuery.order(sortBy, { ascending })
+      queryBuilder = queryBuilder.order(sortBy, { ascending })
     }
 
-    // 병렬 실행
-    const [dataResult, countResult] = await Promise.all([
-      dataQuery.range(offset, offset + limit - 1),
-      countQuery,
-    ])
+    // 데이터 조회
+    const { data, error } = await queryBuilder.range(offset, offset + limit - 1)
+    if (error) throw error
 
-    if (dataResult.error) throw dataResult.error
+    // 카운트 별도 조회 (head: true로 데이터 없이 카운트만 — 빠름)
+    let countBuilder = supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+    if (status === 'active') countBuilder = countBuilder.eq('is_active', true)
+    else if (status === 'inactive') countBuilder = countBuilder.eq('is_active', false)
+    else if (status === 'removed') countBuilder = countBuilder.eq('removed_from_api', true)
+    if (query) {
+      const escaped = escapeLike(query)
+      countBuilder = countBuilder.or(`name.ilike.%${escaped}%,company.ilike.%${escaped}%,report_no.ilike.%${escaped}%`)
+    }
+    const { count } = await countBuilder
 
-    const total = countResult.count ?? 0
+    const total = count ?? 0
     const response: AdminProductsResponse = {
-      data: dataResult.data || [],
+      data: data || [],
       pagination: {
         page,
         limit,
