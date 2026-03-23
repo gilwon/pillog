@@ -1,12 +1,19 @@
 import { requireAdmin } from '@/lib/admin'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import type { AdminProductsResponse } from '@/types/api'
 import { escapeLike } from '@/lib/utils/escape-like'
 
+// Service role 클라이언트 (RLS 우회, 모듈 레벨에서 1회 생성)
+const adminDb = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+)
+
 export async function GET(request: NextRequest) {
   try {
-    const { supabase } = await requireAdmin()
+    await requireAdmin() // 관리자 인증만 확인
     const { searchParams } = new URL(request.url)
 
     const query = searchParams.get('q')?.trim() || ''
@@ -26,7 +33,8 @@ export async function GET(request: NextRequest) {
     const hasFilter = !!(query || status)
     const countMethod = hasFilter ? 'exact' as const : 'planned' as const
 
-    let queryBuilder = supabase
+    // Service role 클라이언트로 조회 (RLS 우회 → 빠름)
+    let queryBuilder = adminDb
       .from('products')
       .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: countMethod })
 
