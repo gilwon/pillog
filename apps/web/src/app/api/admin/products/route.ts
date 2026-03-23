@@ -23,9 +23,12 @@ export async function GET(request: NextRequest) {
       : 'created_at'
     const ascending = searchParams.get('sortOrder') === 'asc'
 
+    const hasFilter = !!(query || status)
+    const countMethod = hasFilter ? 'exact' as const : 'planned' as const
+
     let queryBuilder = supabase
       .from('products')
-      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: 'exact' })
+      .select('id, report_no, name, company, is_active, removed_from_api, reported_at, synced_at, created_at', { count: countMethod })
 
     // 상태 필터
     if (status === 'active') {

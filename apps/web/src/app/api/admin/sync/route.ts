@@ -370,6 +370,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // PostgreSQL 통계 갱신 (planned count 정확도 개선)
+      try {
+        await supabase.rpc('refresh_products_stats')
+      } catch {
+        // 통계 갱신 실패는 동기화에 영향 없음
+      }
+
       controller.enqueue(send({
         type: 'done',
         count: totalUpserted,
